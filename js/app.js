@@ -1711,7 +1711,7 @@ class GeoPlanApp {
     if (name && name.trim()) {
       const newProj = await window.db.saveProject({
         name: name.trim(),
-        description: 'Creado desde GeoPlan'
+        description: 'Creado desde Geowill'
       });
       await this.setActiveProject(newProj);
       document.getElementById('modal-projects-backdrop')?.classList.remove('active');
