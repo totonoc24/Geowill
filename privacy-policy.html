@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Política de Privacidad - Geowill</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #06b6d4;
+      --primary-light: #38bdf8;
+      --border: rgba(255, 255, 255, 0.1);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 24px 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      max-width: 800px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 24px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header img {
+      width: 54px;
+      height: 54px;
+      border-radius: 12px;
+    }
+    h1 {
+      font-size: 24px;
+      color: var(--text-main);
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--primary-light);
+    }
+    h2 {
+      font-size: 18px;
+      color: var(--primary-light);
+      margin-top: 24px;
+      margin-bottom: 10px;
+    }
+    p, li {
+      font-size: 14px;
+      color: #cbd5e1;
+      margin-bottom: 12px;
+    }
+    ul {
+      padding-left: 20px;
+      margin-bottom: 16px;
+    }
+    li {
+      margin-bottom: 8px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--primary-light);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .footer {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="assets/logo_geowill.png" alt="Geowill Logo">
+      <div>
+        <h1>Política de Privacidad</h1>
+        <div class="subtitle">Geowill - Topografía, SIG y Replanteo GPS de Campo</div>
+      </div>
+    </div>
+
+    <div class="badge">Última actualización: 27 de agosto de 2026</div>
+
+    <p>
+      En <b>Geowill</b> (en adelante, "la Aplicación"), nos comprometemos a proteger su privacidad. Esta Política de Privacidad describe cómo se gestiona la información dentro de nuestra aplicación móvil para Android e iOS.
+    </p>
+
+    <h2>1. Privacidad por Diseño (Almacenamiento Local)</h2>
+    <p>
+      Geowill opera bajo una arquitectura de <b>almacenamiento 100% local y privado</b>. Toda la información de sus proyectos topográficos, coordenadas, linderos, entidades vectoriales, planos PDF y fotografías se almacenan exclusivamente en la memoria interna de su dispositivo (IndexedDB / Base de Datos Local).
+    </p>
+    <p>
+      <b>No recopilamos, transferimos, vendemos ni alojamos sus datos topográficos en servidores externos.</b> Sus levantamientos le pertenecen únicamente a usted.
+    </p>
+
+    <h2>2. Permisos del Dispositivo y Uso de la Información</h2>
+    <p>Para brindar sus funciones de ingeniería y topografía de campo, la Aplicación solicita los siguientes permisos:</p>
+    <ul>
+      <li>
+        <b>📍 Ubicación Precisa y en Segundo Plano (GPS):</b> Se utiliza exclusivamente para calcular coordenadas geográficas en tiempo real (WGS84, EPSG:3116, EPSG:9377), registrar trayectorias y guiarle en el replanteo de vértices mediante brújula. El servicio en segundo plano permite seguir grabando la trayectoria mientras la pantalla está apagada. Estos datos no salen de su teléfono.
+      </li>
+      <li>
+        <b>📸 Cámara:</b> Se utiliza únicamente cuando usted decide tomar fotografías de campo para anexarlas a las fichas técnicas de los puntos o linderos.
+      </li>
+      <li>
+        <b>💾 Almacenamiento y Archivos:</b> Se utiliza para importar planos en formato PDF y archivos KML/KMZ desde su dispositivo, así como para exportar sus archivos KML a WhatsApp, Bluetooth o descargas locales.
+      </li>
+    </ul>
+
+    <h2>3. Compartición de Información con Terceros</h2>
+    <p>
+      Geowill no comparte ninguna información personal ni datos de ubicación con terceros. La exportación de datos (como el envío de archivos KML por WhatsApp o correo electrónico) se realiza únicamente por acción expresa y directa del usuario mediante el menú estándar de compartir de su sistema operativo.
+    </p>
+
+    <h2>4. Seguridad de los Datos</h2>
+    <p>
+      Dado que toda la información permanece en su dispositivo, la seguridad de sus proyectos está respaldada por los mecanismos de seguridad nativos de su sistema operativo (código de bloqueo, huella dactilar o FaceID).
+    </p>
+
+    <h2>5. Contacto</h2>
+    <p>
+      Si tiene alguna pregunta, consulta o sugerencia con respecto a esta Política de Privacidad o el funcionamiento de Geowill, puede ponerse en contacto con nuestro equipo de soporte técnico a través del repositorio oficial de la aplicación.
+    </p>
+
+    <div class="footer">
+      © 2026 Geowill GIS. Todos los derechos reservados.
+    </div>
+  </div>
+</body>
+</html>
