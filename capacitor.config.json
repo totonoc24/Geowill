@@ -1,0 +1,16 @@
+{
+  "appId": "com.geowill.gis",
+  "appName": "Geowill",
+  "webDir": ".",
+  "bundledWebRuntime": false,
+  "ios": {
+    "contentInset": "always",
+    "allowsLinkPreview": false,
+    "scrollEnabled": false
+  },
+  "plugins": {
+    "Geolocation": {
+      "enableHighAccuracy": true
+    }
+  }
+}

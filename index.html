@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Geowill - SIG & Topografía de Campo</title>
+  
+  <meta name="description" content="App móvil Android para georreferenciación de planos PDF con GPS en tiempo real, digitalización de puntos, líneas y polígonos, fotos de campo y exportación KML.">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Geowill">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="assets/icon-512.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="assets/logo_geowill.png">
+
+  <!-- Local Leaflet Stylesheet -->
+  <link rel="stylesheet" href="css/leaflet.css">
+  <!-- Application Mobile Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <div id="app-container">
+
+    <!-- Top Navigation Bar -->
+    <header class="top-nav">
+      <div class="nav-left">
+        <div class="brand-badge" id="btn-projects-menu" title="Gestor de Proyectos" style="display: flex; align-items: center; gap: 6px;">
+          <img src="assets/logo_geowill.png" style="width: 26px; height: 26px; border-radius: 6px; object-fit: cover;" alt="Logo Geowill">
+          <span class="brand-title" style="font-weight: 800; font-size: 15px; color: #38bdf8;">Geowill</span>
+          <span class="project-name-pill" id="active-project-pill">Levantamiento</span>
+        </div>
+      </div>
+
+      <div class="nav-right">
+        <button class="icon-btn-round" id="btn-open-point-search" title="Buscar Puntos y Replanteo / Navegación" style="background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #10b981;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+
+        <div class="status-badge" id="gps-status-badge" title="Estado del GPS">
+          <div class="status-dot searching" id="gps-status-dot"></div>
+          <span id="gps-status-text">GPS</span>
+        </div>
+        <button class="icon-btn-round" id="btn-layers-menu" title="Capas y Mapas Base">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Interactive Leaflet Map Container -->
+    <main id="map"></main>
+
+    <!-- Real-time HUD Coordinates Box with CRS Switcher -->
+    <div class="hud-coordinates-bar" id="hud-crs-container" style="cursor: pointer;" title="Toca para cambiar sistema de coordenadas">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+        <span id="hud-crs-badge" style="font-size: 9px; font-weight: 800; color: #38bdf8; background: rgba(56,189,248,0.2); padding: 1px 5px; border-radius: 4px; border: 1px solid rgba(56,189,248,0.4);">WGS84</span>
+        <span style="font-size: 8px; color: #94a3b8;">Cambiar CRS 🔄</span>
+      </div>
+      <div class="hud-row">
+        <span id="hud-label-c1">Lat:</span>
+        <span class="hud-val" id="hud-lat">4.609700</span>
+      </div>
+      <div class="hud-row">
+        <span id="hud-label-c2">Lon:</span>
+        <span class="hud-val" id="hud-lng">-74.081700</span>
+      </div>
+      <div class="hud-row">
+        <span>Alt:</span>
+        <span class="hud-val" id="hud-alt">-- m</span>
+      </div>
+      <div class="hud-row">
+        <span>Prec:</span>
+        <span class="hud-val" id="hud-acc">-- m</span>
+      </div>
+    </div>
+
+    <!-- GPS Route Recording (Tracklog) HUD Bar -->
+    <div id="track-hud-bar" style="display: none; position: absolute; top: 54px; left: 10px; right: 10px; z-index: 650; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(12px); border: 1.5px solid #f43f5e; border-radius: 12px; padding: 7px 10px; align-items: center; justify-content: space-between; box-shadow: 0 6px 20px rgba(244,63,94,0.35);">
+      <div style="display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1;">
+        <span id="track-hud-pulse" style="display: inline-block; width: 10px; height: 10px; min-width: 10px; background: #f43f5e; border-radius: 50%; box-shadow: 0 0 8px #f43f5e;"></span>
+        <div style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          <span id="track-hud-status-lbl" style="font-weight: 800; color: #f43f5e;">GRABANDO:</span>
+          <span id="track-hud-time" style="font-weight: 700; color: #f8fafc; margin-left: 4px;">00:00</span>
+          <span style="color: #64748b; margin: 0 3px;">|</span>
+          <span id="track-hud-dist" style="color: #38bdf8; font-weight: 700;">0 m</span>
+          <span style="color: #64748b; margin: 0 3px;">|</span>
+          <span id="track-hud-speed" style="color: #10b981;">0.0 km/h</span>
+          <span style="color: #64748b; margin: 0 3px;">|</span>
+          <span id="track-dist-filter-badge" title="Toca para cambiar filtro de distancia" style="cursor: pointer; background: rgba(6,182,212,0.2); color: #38bdf8; border: 1px solid rgba(6,182,212,0.4); border-radius: 4px; padding: 1px 5px; font-size: 9px; font-weight: 800;">5m ⚙️</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 6px;">
+        <button class="btn btn-sm" id="btn-pause-track-hud" style="padding: 5px 9px; font-size: 11px; font-weight: 700; background: #f59e0b; color: #ffffff; border: none; border-radius: 6px; box-shadow: 0 2px 6px rgba(245,158,11,0.3);">
+          ⏸️ Pausa
+        </button>
+        <button class="btn btn-sm btn-danger" id="btn-stop-track-hud" style="padding: 5px 9px; font-size: 11px; font-weight: 700; border-radius: 6px; box-shadow: 0 2px 6px rgba(244,63,94,0.3);">
+          ⏹️ Fin
+        </button>
+      </div>
+    </div>
+
+    <!-- Stakeout & Point Navigation Guidance Live HUD Bar -->
+    <div id="nav-guidance-hud" style="display: none; position: absolute; top: 54px; left: 10px; right: 10px; z-index: 660; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(14px); border: 1.5px solid #10b981; border-radius: 14px; padding: 8px 12px; box-shadow: 0 8px 24px rgba(16,185,129,0.35); flex-direction: column; gap: 6px;">
+      <!-- Header Row: Target Name and Stop Button -->
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+          <span style="display: inline-block; width: 10px; height: 10px; min-width: 10px; background: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981;"></span>
+          <span style="font-size: 11px; font-weight: 800; color: #10b981;">GUIANDO A:</span>
+          <span id="nav-hud-target-name" style="font-size: 12px; font-weight: 700; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;">Punto</span>
+        </div>
+        <button class="btn btn-sm btn-danger" id="btn-stop-navigation" style="padding: 4px 8px; font-size: 10px; font-weight: 700; border-radius: 6px;">
+          ✕ Salir de Guía
+        </button>
+      </div>
+
+      <!-- Main Guidance Row: Distance, Bearing & Needle -->
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: rgba(30, 41, 59, 0.7); padding: 6px 10px; border-radius: 10px;">
+        <!-- Left: Distance & Bearing -->
+        <div>
+          <div style="font-size: 9px; color: #94a3b8; font-weight: 600;">DISTANCIA RESTANTE</div>
+          <div id="nav-hud-distance" style="font-size: 22px; font-weight: 900; color: #38bdf8; line-height: 1.1; font-family: monospace;">-- m</div>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; margin-top: 2px;">
+            <span style="color: #94a3b8;">Azimut:</span>
+            <span id="nav-hud-bearing" style="font-weight: 700; color: #f8fafc;">--°</span>
+          </div>
+        </div>
+
+        <!-- Right: Turn Instruction and Rotating Needle -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="text-align: right;">
+            <div style="font-size: 9px; color: #94a3b8; font-weight: 600;">DIRECCIÓN</div>
+            <div id="nav-hud-turn" style="font-size: 11px; font-weight: 800; color: #f59e0b; white-space: nowrap;">Calculando...</div>
+          </div>
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: #0f172a; border: 2px solid #38bdf8; display: flex; align-items: center; justify-content: center; position: relative; box-shadow: 0 0 10px rgba(56,189,248,0.3); flex-shrink: 0;">
+            <div id="nav-compass-needle" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <polygon points="12 2 17 20 12 16 7 20 12 2" fill="#10b981" stroke="#ffffff" stroke-width="1"></polygon>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrival Alert Banner (Hidden until < 3m) -->
+      <div id="nav-hud-arrived-alert" style="display: none; background: rgba(16,185,129,0.25); border: 1px solid #10b981; border-radius: 8px; padding: 4px 8px; align-items: center; justify-content: center; gap: 6px; color: #10b981; font-weight: 800; font-size: 11px;">
+        <span>🎉</span> <span>¡HAS LLEGADO AL PUNTO! (Distancia &lt; 3 metros)</span>
+      </div>
+    </div>
+
+    <!-- Map Floating Side Controls -->
+    <div class="map-side-controls">
+      <button class="side-btn" id="btn-side-point-search" title="Buscar Puntos y Replanteo / Navegación" style="background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #10b981;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      </button>
+
+      <button class="side-btn" id="btn-gps-center" title="Centrar en mi ubicación">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <circle cx="12" cy="12" r="3"></circle>
+          <line x1="12" y1="2" x2="12" y2="6"></line>
+          <line x1="12" y1="18" x2="12" y2="22"></line>
+          <line x1="2" y1="12" x2="6" y2="12"></line>
+          <line x1="18" y1="12" x2="22" y2="12"></line>
+        </svg>
+      </button>
+
+      <button class="side-btn" id="btn-gps-follow" title="Seguir mi movimiento">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+        </svg>
+      </button>
+
+      <button class="side-btn" id="btn-toggle-track" title="Grabar Ruta / Recorrido GPS (Tracklog)" style="background: rgba(244, 63, 94, 0.2); border-color: rgba(244, 63, 94, 0.5); color: #f43f5e; flex-direction: column;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;">
+          <circle cx="12" cy="12" r="6" fill="#f43f5e"></circle>
+        </svg>
+        <span style="font-size: 8px; font-weight: 800; margin-top: 1px;" id="lbl-track-btn">REC</span>
+      </button>
+
+      <button class="side-btn" id="btn-quick-gps-point" title="Capturar punto en mi GPS" style="background: rgba(6, 182, 212, 0.2); border-color: rgba(6, 182, 212, 0.4); color: #06b6d4;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+      </button>
+    </div>
+
+    <!-- PDF Opacity Slider Widget (visible when PDF is loaded) -->
+    <div class="pdf-opacity-control hidden" id="pdf-opacity-box">
+      <label for="pdf-opacity-slider">Opacidad Plano</label>
+      <input type="range" id="pdf-opacity-slider" min="0" max="100" value="85">
+    </div>
+
+    <!-- Active Drawing Live Banner -->
+    <div class="drawing-toolbar-overlay" id="drawing-banner" style="display: none;">
+      <div class="drawing-info">
+        <span class="drawing-mode-label" id="drawing-mode-name">MODO DIBUJO</span>
+        <span class="drawing-metric-live" id="drawing-live-metric">Toque el mapa</span>
+      </div>
+      <button class="btn btn-sm btn-secondary" id="btn-drawing-undo">Deshacer</button>
+      <button class="btn btn-sm btn-success" id="btn-drawing-finish">Finalizar</button>
+      <button class="btn btn-sm btn-danger" id="btn-drawing-cancel">✕</button>
+    </div>
+
+    <!-- Bottom Action Dock (Thumb Navigation) -->
+    <nav class="bottom-action-dock">
+      <button class="dock-btn" id="dock-btn-point" data-mode="point">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+        <span>Punto</span>
+      </button>
+
+      <button class="dock-btn" id="dock-btn-line" data-mode="line">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 17 10 11 14 15 20 7"></polyline>
+          <circle cx="4" cy="17" r="2"></circle>
+          <circle cx="20" cy="7" r="2"></circle>
+        </svg>
+        <span>Línea</span>
+      </button>
+
+      <button class="dock-btn" id="dock-btn-polygon" data-mode="polygon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
+        </svg>
+        <span>Polígono</span>
+      </button>
+
+      <button class="dock-btn btn-primary-action" id="dock-btn-georef" title="Cargar y Georreferenciar Plano PDF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="3" y1="9" x2="21" y2="9"></line>
+          <line x1="9" y1="21" x2="9" y2="9"></line>
+        </svg>
+        <span>Plano PDF</span>
+      </button>
+
+      <button class="dock-btn" id="dock-btn-export" title="Exportar KML a Google Earth / WhatsApp">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>KML</span>
+      </button>
+    </nav>
+
+    <!-- ====================================================================
+         Modal 1: PDF Plan Manager (GeoPDF & 3-Point Calibration)
+         ==================================================================== -->
+    <div class="fullscreen-modal" id="modal-georef-wizard">
+      <div class="fullscreen-header">
+        <h3 style="font-size: 16px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+          🗺️ Gestor de Planos PDF - Geowill
+        </h3>
+        <button class="btn btn-sm btn-secondary" id="btn-close-georef-wizard">✕ Cerrar</button>
+      </div>
+
+      <!-- Mode Selector Tabs: GeoPDF vs 3-Point Calibration -->
+      <div style="background: #1e293b; padding: 8px 16px; display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <button class="btn btn-sm btn-secondary flex-1" id="tab-btn-geopdf" style="flex: 1; font-weight: 700; background: rgba(6, 182, 212, 0.2); color: #38bdf8; border-color: #06b6d4;">
+          🌐 Cargar Plano Georreferenciado
+        </button>
+        <button class="btn btn-sm btn-secondary flex-1" id="tab-btn-3point" style="flex: 1; font-weight: 700; color: #94a3b8;">
+          📐 Calibrar con 3 Puntos
+        </button>
+      </div>
+
+      <div class="fullscreen-body">
+        <!-- ================= PANEL 1: CARGAR GEOPDF ================= -->
+        <div id="panel-geopdf-mode" style="padding: 20px; overflow-y: auto; max-width: 600px; margin: 0 auto; width: 100%;">
+          <div style="text-align: center; margin-bottom: 18px;">
+            <div style="font-size: 44px; margin-bottom: 8px;">🌐</div>
+            <h4 style="font-size: 17px; color: #f8fafc; margin-bottom: 6px;">Plano PDF Georreferenciado</h4>
+            <p style="font-size: 13px; color: #94a3b8;">
+              Cargue un plano exportado desde <b>ArcGIS</b>, <b>QGIS</b>, <b>Global Mapper</b> o <b>AutoCAD Map</b>.
+            </p>
+          </div>
+
+          <label class="btn btn-primary btn-block" style="padding: 16px; font-size: 14px; cursor: pointer; margin-bottom: 16px; border-radius: 12px; box-shadow: 0 4px 16px rgba(6,182,212,0.3);">
+            <span>📂 Seleccionar Archivo PDF Georreferenciado</span>
+            <input type="file" id="geopdf-file-input" accept="application/pdf" style="display: none;">
+          </label>
+
+          <!-- Auto-Detection Status Box -->
+          <div id="geopdf-status-box" style="display: none; background: rgba(16,185,129,0.15); border: 1px solid #10b981; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px; color: #10b981; font-weight: 700; font-size: 13px;">
+              <span>✅</span> <span id="geopdf-status-title">GeoPDF detectado correctamente</span>
+            </div>
+            <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px;" id="geopdf-status-details">
+              Coordenadas y límites espaciales extraídos automáticamente.
+            </div>
+            <button class="btn btn-success btn-block" id="btn-apply-auto-geopdf" style="margin-top: 10px;">
+              🚀 Proyectar Plano en el Mapa
+            </button>
+          </div>
+
+          <!-- Manual Coordinates Extent / Bounding Box (Alternative for PDF with known bounds) -->
+          <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; margin-top: 8px;">
+            <h5 style="color: #38bdf8; font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <span>📍</span> O Definir Límites del Plano (Bounding Box)
+            </h5>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+              <div>
+                <label class="form-label" style="font-size: 11px;">Norte / Latitud Max:</label>
+                <input type="text" class="form-input" id="bbox-north-input" placeholder="ej. 4.615000">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Sur / Latitud Min:</label>
+                <input type="text" class="form-input" id="bbox-south-input" placeholder="ej. 4.605000">
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+              <div>
+                <label class="form-label" style="font-size: 11px;">Oeste / Longitud Min:</label>
+                <input type="text" class="form-input" id="bbox-west-input" placeholder="ej. -74.085000">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px;">Este / Longitud Max:</label>
+                <input type="text" class="form-input" id="bbox-east-input" placeholder="ej. -74.075000">
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-block" id="btn-apply-bbox-geopdf" style="color: #38bdf8; border-color: rgba(56,189,248,0.3);">
+              Aplicar Coordenadas de Límites
+            </button>
+          </div>
+        </div>
+
+        <!-- ================= PANEL 2: CALIBRACIÓN CON 3 PUNTOS ================= -->
+        <div id="panel-3point-mode" style="display: none; height: 100%; flex-direction: column; width: 100%;">
+          <!-- PDF File Selector for 3-Point -->
+          <div id="pdf-upload-placeholder" style="padding: 24px; text-align: center; margin: auto; max-width: 400px;">
+            <div style="font-size: 48px; margin-bottom: 12px;">📐</div>
+            <h4 style="font-size: 16px; margin-bottom: 8px; color: #f8fafc;">Plano no Georreferenciado</h4>
+            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">
+              Cargue su plano en PDF para calibrarlo marcando 3 puntos de control.
+            </p>
+            <label class="btn btn-primary btn-block" style="padding: 14px; font-size: 14px; cursor: pointer;">
+              <span>📂 Seleccionar Archivo PDF</span>
+              <input type="file" id="pdf-file-input" accept="application/pdf" style="display: none;">
+            </label>
+          </div>
+
+          <!-- Calibration Wizard Container -->
+          <div id="pdf-wizard-content" class="georef-container hidden">
+            <div class="georef-step-indicator">
+              <div class="gcp-pill-list">
+                <div class="gcp-pill active" data-gcp="0">
+                  <span>Punto 1</span>
+                </div>
+                <div class="gcp-pill" data-gcp="1">
+                  <span>Punto 2</span>
+                </div>
+                <div class="gcp-pill" data-gcp="2">
+                  <span>Punto 3</span>
+                </div>
+              </div>
+              <button class="btn btn-sm btn-success" id="btn-apply-georef">Aplicar al Mapa</button>
+            </div>
+
+            <!-- PDF Canvas Viewport -->
+            <div class="pdf-canvas-viewport">
+              <div style="position: relative; display: inline-block;">
+                <canvas id="pdf-render-canvas"></canvas>
+                <div class="canvas-crosshair-layer" id="gcp-crosshair-layer"></div>
+              </div>
+            </div>
+
+            <!-- GCP Coordinates Entry Panel with CRS Selector -->
+            <div class="georef-bottom-panel">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 12px; font-weight: 700; color: #38bdf8;" id="gcp-pixel-info">Toque en el plano para definir pixel</span>
+                <button class="btn btn-sm btn-secondary" id="btn-gcp-use-gps" style="color: #38bdf8; border-color: rgba(56,189,248,0.3);">
+                  📍 Usar mi GPS
+                </button>
+              </div>
+
+              <!-- CRS Selector for Colombia (WGS84 / EPSG:3116 / EPSG:9377) -->
+              <div style="margin-bottom: 8px;">
+                <label class="form-label" style="font-size: 10px; color: #94a3b8; margin-bottom: 2px;">Sistema de Coordenadas del Plano:</label>
+                <select class="form-select" id="wizard-crs-select" style="padding: 6px 8px; font-size: 11px; border-color: #06b6d4; height: 32px;">
+                  <option value="wgs84">🌐 WGS84 (Latitud / Longitud en Grados o DMS)</option>
+                  <option value="epsg3116">🇨🇴 EPSG:3116 (MAGNA-SIRGAS / Bogotá - Norte / Este en metros)</option>
+                  <option value="epsg9377">🇨🇴 EPSG:9377 (MAGNA-SIRGAS Origen Nacional - Norte / Este en metros)</option>
+                </select>
+              </div>
+
+              <div class="gcp-inputs-grid">
+                <div>
+                  <label class="form-label" id="lbl-gcp-c1" style="margin-bottom: 2px;">Latitud / Norte (Y):</label>
+                  <input type="text" class="form-input" id="gcp-lat-input" placeholder="ej. 4.609712 ó 1000000">
+                </div>
+                <div>
+                  <label class="form-label" id="lbl-gcp-c2" style="margin-bottom: 2px;">Longitud / Este (X):</label>
+                  <input type="text" class="form-input" id="gcp-lng-input" placeholder="ej. -74.081734 ó 1000000">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         Modal 2: Feature Attributes & Photo Attachment
+         ==================================================================== -->
+    <div class="modal-backdrop" id="modal-feature-backdrop">
+      <div class="bottom-sheet">
+        <div class="sheet-handle-bar"></div>
+        <div class="sheet-header">
+          <h3 class="sheet-title" id="modal-feature-title">Ficha Técnica de la Entidad</h3>
+          <button class="btn btn-sm btn-secondary" onclick="window.app.closeFeatureModal()">✕</button>
+        </div>
+
+        <div class="sheet-body">
+          <div class="form-group">
+            <label class="form-label">Nombre / Código:</label>
+            <input type="text" class="form-input" id="feature-name-input" placeholder="ej. Vértice V-01, Lindero Norte...">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Categoría:</label>
+            <select class="form-select" id="feature-category-input">
+              <option value="General">General</option>
+              <option value="Vértice Topográfico">Vértice Topográfico</option>
+              <option value="Lindero / Perímetro">Lindero / Perímetro</option>
+              <option value="Construcción">Construcción</option>
+              <option value="Vía / Acceso">Vía / Acceso</option>
+              <option value="Red de Servicios">Red de Servicios</option>
+              <option value="Cuerpo de Agua">Cuerpo de Agua</option>
+              <option value="Punto de Control">Punto de Control</option>
+              <option value="Tracklog / Recorrido GPS">Tracklog / Recorrido GPS</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Color de Visualización:</label>
+            <input type="color" class="form-input" id="feature-color-input" value="#06b6d4" style="height: 38px; padding: 2px;">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Descripción / Observaciones de Campo:</label>
+            <textarea class="form-textarea" id="feature-desc-input" placeholder="Detalles sobre el estado del terreno, materialización del punto, colindancias..."></textarea>
+          </div>
+
+          <!-- Dynamic Metric Info -->
+          <div id="feature-metrics-info" style="background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.2); padding: 8px 12px; border-radius: 8px; font-size: 12px; margin-bottom: 14px; display: none;"></div>
+
+          <!-- Photo Attachments Section with Instant Camera & Gallery -->
+          <div class="form-group">
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Fotografías de Campo:</span>
+              <span style="font-size: 11px; color: #94a3b8;" id="photo-count-badge">0 fotos</span>
+            </label>
+            
+            <div class="photo-gallery-preview" id="photo-gallery-list" style="margin-bottom: 8px;"></div>
+
+            <!-- Two Instant Actions: Camera & Gallery -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <button type="button" class="btn btn-primary" id="btn-trigger-camera" style="padding: 12px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 8px; box-shadow: 0 4px 12px rgba(6,182,212,0.3);">
+                <span style="font-size: 16px;">📷</span>
+                <span>Tomar Foto (Cámara)</span>
+              </button>
+              <input type="file" id="camera-direct-input" accept="image/*" capture="environment" style="display: none;">
+
+              <label class="btn btn-secondary" style="padding: 12px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 8px; border-color: rgba(255,255,255,0.2);">
+                <span style="font-size: 16px;">🖼️</span>
+                <span>Galería / Archivos</span>
+                <input type="file" id="gallery-direct-input" accept="image/*" multiple style="display: none;">
+              </label>
+            </div>
+
+            <!-- Live in-app viewfinder camera button -->
+            <button class="btn btn-secondary btn-block" id="btn-open-live-cam" style="margin-top: 8px; font-size: 11px; padding: 8px; color: #38bdf8; border-color: rgba(56,189,248,0.3); display: flex; align-items: center; justify-content: center; gap: 6px;">
+              <span>🎥 Abrir Visor de Cámara en Pantalla Completa</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sheet-footer">
+          <button class="btn btn-secondary" onclick="window.app.closeFeatureModal()">Cancelar</button>
+          <button class="btn btn-primary" id="btn-save-feature">Guardar Entidad</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         Modal: Live In-App Camera Viewfinder
+         ==================================================================== -->
+    <div class="fullscreen-modal" id="modal-live-camera" style="background: #000; z-index: 1500; display: none;">
+      <div style="position: absolute; inset: 0; display: flex; flex-direction: column;">
+        <!-- Top bar -->
+        <div style="padding: 16px; display: flex; justify-content: space-between; align-items: center; z-index: 10; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);">
+          <span style="color: #fff; font-weight: 700; font-size: 15px;">📸 Cámara de Campo - Geowill</span>
+          <button class="btn btn-sm btn-secondary" id="btn-close-live-camera">✕ Cerrar</button>
+        </div>
+        <!-- Video Feed -->
+        <div style="flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+          <video id="live-camera-feed" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+          <canvas id="live-camera-snap-canvas" style="display: none;"></canvas>
+        </div>
+        <!-- Shutter bar -->
+        <div style="padding: 24px; display: flex; justify-content: space-around; align-items: center; background: linear-gradient(to top, rgba(0,0,0,0.9), transparent); z-index: 10;">
+          <button class="btn btn-sm btn-secondary" id="btn-flip-camera" style="border-radius: 50%; width: 48px; height: 48px; padding: 0; font-size: 20px;">🔄</button>
+          <button id="btn-shutter-snap" style="width: 76px; height: 76px; border-radius: 50%; background: #ffffff; border: 4px solid #06b6d4; box-shadow: 0 0 24px rgba(6,182,212,0.7); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+            <div style="width: 58px; height: 58px; border-radius: 50%; background: #f8fafc;"></div>
+          </button>
+          <div style="width: 48px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         Modal: Point Search & Stakeout Navigation List
+         ==================================================================== -->
+    <div class="fullscreen-modal" id="modal-point-search" style="display: none; z-index: 1400;">
+      <div class="fullscreen-header">
+        <h3 style="font-size: 16px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+          🎯 Búsqueda de Puntos y Replanteo
+        </h3>
+        <button class="btn btn-sm btn-secondary" id="btn-close-point-search">✕ Cerrar</button>
+      </div>
+
+      <!-- Search and Filter Bar -->
+      <div style="background: #1e293b; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <div style="position: relative; margin-bottom: 8px;">
+          <input type="text" id="point-search-input" class="form-input" placeholder="🔍 Buscar por nombre, notas, categoría..." style="padding-left: 36px; height: 42px; font-size: 13px; border-radius: 10px;">
+          <span style="position: absolute; left: 12px; top: 12px; font-size: 14px; color: #64748b;">🔍</span>
+        </div>
+        <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;">
+          <button class="btn btn-sm filter-pill active" data-filter="all" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.4);">Todos</button>
+          <button class="btn btn-sm filter-pill" data-filter="Point" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">📍 Puntos</button>
+          <button class="btn btn-sm filter-pill" data-filter="LineString" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">〰️ Líneas</button>
+          <button class="btn btn-sm filter-pill" data-filter="Polygon" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">⬡ Polígonos</button>
+        </div>
+      </div>
+
+      <div class="fullscreen-body" style="padding: 12px; overflow-y: auto;">
+        <div id="point-search-list-container"></div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         Modal: Unified KML Hub (Import & Export with WhatsApp / Bluetooth)
+         ==================================================================== -->
+    <div class="modal-backdrop" id="modal-export-kml">
+      <div class="bottom-sheet" style="max-height: 90vh;">
+        <div class="sheet-handle-bar"></div>
+        <div class="sheet-header">
+          <h3 class="sheet-title">🌐 Gestor KML - Geowill</h3>
+          <button class="btn btn-sm btn-secondary" onclick="document.getElementById('modal-export-kml').classList.remove('active')">✕</button>
+        </div>
+
+        <!-- Mode Tabs: Importar vs Exportar -->
+        <div style="background: #1e293b; padding: 6px 14px; display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <button class="btn btn-sm flex-1" id="tab-btn-kml-import" style="flex: 1; font-weight: 700; background: rgba(6, 182, 212, 0.2); color: #38bdf8; border: 1px solid #06b6d4;">
+            📥 Importar KML
+          </button>
+          <button class="btn btn-sm flex-1" id="tab-btn-kml-export" style="flex: 1; font-weight: 700; background: transparent; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1);">
+            📤 Exportar KML
+          </button>
+        </div>
+
+        <div class="sheet-body" style="padding: 16px; overflow-y: auto;">
+          <!-- ================= TAB 1: IMPORTAR KML ================= -->
+          <div id="panel-kml-import-mode">
+            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 14px;">
+              Cargue archivos <b>.KML</b> de Google Earth, AutoCAD, QGIS o ArcGIS con puntos, linderos y polígonos:
+            </p>
+
+            <label class="btn btn-primary btn-block" style="padding: 16px; font-size: 14px; cursor: pointer; margin-bottom: 14px; border-radius: 12px; box-shadow: 0 4px 16px rgba(6,182,212,0.3); display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <span style="font-size: 20px;">📂</span>
+              <span>Seleccionar Archivo .KML</span>
+              <input type="file" id="kml-file-import-input" accept=".kml,.kmz,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,text/xml,application/xml,*/*" style="display: none;">
+            </label>
+
+            <!-- KML Import Preview Box -->
+            <div id="kml-import-preview-box" style="display: none; background: rgba(15, 23, 42, 0.8); border: 1px solid #06b6d4; border-radius: 10px; padding: 12px; margin-bottom: 14px;">
+              <div style="font-weight: 700; color: #38bdf8; font-size: 13px; margin-bottom: 6px;" id="kml-import-doc-name">Levantamiento KML</div>
+              <div style="font-size: 11px; color: #cbd5e1; display: flex; gap: 10px; margin-bottom: 10px;" id="kml-import-stats">
+                <span>📍 0 Puntos</span>
+                <span>〰️ 0 Líneas</span>
+                <span>⬡ 0 Polígonos</span>
+              </div>
+              <div id="kml-import-elements-list" style="max-height: 140px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; font-size: 11px; margin-bottom: 10px;"></div>
+              <button class="btn btn-success btn-block" id="btn-confirm-kml-import" style="padding: 12px; font-size: 13px; font-weight: 700; border-radius: 8px;">
+                🚀 Importar Elementos al Proyecto
+              </button>
+            </div>
+          </div>
+
+          <!-- ================= TAB 2: EXPORTAR KML ================= -->
+          <div id="panel-kml-export-mode" style="display: none;">
+            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+              Comparta su levantamiento topográfico para <b>Google Earth</b>, <b>QGIS</b> o <b>ArcGIS</b>:
+            </p>
+            
+            <button class="btn btn-success btn-block" id="btn-share-kml-whatsapp" style="padding: 16px; margin-bottom: 12px; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px; border-radius: 12px; box-shadow: 0 4px 16px rgba(16,185,129,0.3);">
+              <span style="font-size: 22px;">📲</span>
+              <span>Enviar por WhatsApp / Bluetooth / Compartir</span>
+            </button>
+
+            <button class="btn btn-secondary btn-block" id="btn-download-kml-direct" style="padding: 14px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #38bdf8; border-color: rgba(56,189,248,0.3); border-radius: 12px;">
+              <span style="font-size: 18px;">💾</span>
+              <span>Descargar Archivo KML Directo</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         Modal 3: Project Manager
+         ==================================================================== -->
+    <div class="modal-backdrop" id="modal-projects-backdrop">
+      <div class="bottom-sheet">
+        <div class="sheet-handle-bar"></div>
+        <div class="sheet-header">
+          <h3 class="sheet-title">📂 Proyectos Topográficos - Geowill</h3>
+          <button class="btn btn-sm btn-secondary" onclick="document.getElementById('modal-projects-backdrop').classList.remove('active')">✕</button>
+        </div>
+        <div class="sheet-body">
+          <button class="btn btn-primary btn-block" style="margin-bottom: 16px;" onclick="window.app.createNewProjectPrompt()">
+            ➕ Nuevo Proyecto
+          </button>
+          <div id="projects-list-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         Modal 4: Base Maps & Layers
+         ==================================================================== -->
+    <div class="modal-backdrop" id="modal-layers-backdrop">
+      <div class="bottom-sheet">
+        <div class="sheet-handle-bar"></div>
+        <div class="sheet-header">
+          <h3 class="sheet-title">🗺️ Mapa Base</h3>
+          <button class="btn btn-sm btn-secondary" onclick="document.getElementById('modal-layers-backdrop').classList.remove('active')">✕</button>
+        </div>
+        <div class="sheet-body">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="btn btn-secondary basemap-option-card active" data-base="google_hybrid" onclick="window.app.setMapBase('google_hybrid')" style="flex-direction: column; padding: 12px 6px;">
+              <span style="font-size: 22px;">🛰️</span>
+              <span style="font-weight: 700; font-size: 12px; color: #38bdf8;">Google Híbrido</span>
+              <span style="font-size: 10px; color: #94a3b8;">Satélite + Vías/Nombres</span>
+            </button>
+            <button class="btn btn-secondary basemap-option-card" data-base="google_sat" onclick="window.app.setMapBase('google_sat')" style="flex-direction: column; padding: 12px 6px;">
+              <span style="font-size: 22px;">🌍</span>
+              <span style="font-weight: 700; font-size: 12px;">Google Satélite</span>
+              <span style="font-size: 10px; color: #94a3b8;">Imagen Limpia HD</span>
+            </button>
+            <button class="btn btn-secondary basemap-option-card" data-base="google_streets" onclick="window.app.setMapBase('google_streets')" style="flex-direction: column; padding: 12px 6px;">
+              <span style="font-size: 22px;">🗺️</span>
+              <span style="font-weight: 700; font-size: 12px;">Google Calles</span>
+              <span style="font-size: 10px; color: #94a3b8;">Mapa Vectorial</span>
+            </button>
+            <button class="btn btn-secondary basemap-option-card" data-base="google_terrain" onclick="window.app.setMapBase('google_terrain')" style="flex-direction: column; padding: 12px 6px;">
+              <span style="font-size: 22px;">⛰️</span>
+              <span style="font-weight: 700; font-size: 12px;">Google Relieve</span>
+              <span style="font-size: 10px; color: #94a3b8;">Topografía / Curvas</span>
+            </button>
+            <button class="btn btn-secondary basemap-option-card" data-base="esri_sat" onclick="window.app.setMapBase('esri_sat')" style="flex-direction: column; padding: 12px 6px;">
+              <span style="font-size: 22px;">🛰️</span>
+              <span style="font-weight: 700; font-size: 12px;">Esri Satelital</span>
+              <span style="font-size: 10px; color: #94a3b8;">World Imagery</span>
+            </button>
+            <button class="btn btn-secondary basemap-option-card" data-base="osm" onclick="window.app.setMapBase('osm')" style="flex-direction: column; padding: 12px 6px;">
+              <span style="font-size: 22px;">🌐</span>
+              <span style="font-weight: 700; font-size: 12px;">OpenStreetMap</span>
+              <span style="font-size: 10px; color: #94a3b8;">Estándar Libre</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications Layer -->
+    <div id="toast-container"></div>
+
+  </div>
+
+  <!-- Vendor Core Scripts -->
+  <script src="js/libs/leaflet.js"></script>
+  <script src="js/libs/pdf.min.js"></script>
+
+  <!-- Application Modules -->
+  <script src="js/storage-db.js"></script>
+  <script src="js/georef-engine.js"></script>
+  <script src="js/pdf-loader.js"></script>
+  <script src="js/gps-tracker.js"></script>
+  <script src="js/vector-editor.js"></script>
+  <script src="js/kml-exporter.js"></script>
+  <script src="js/kml-importer.js"></script>
+  <script src="js/navigation-stakeout.js"></script>
+  <script src="js/map-engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

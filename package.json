@@ -1,0 +1,30 @@
+{
+  "name": "geowill-android-gis",
+  "version": "1.0.0",
+  "description": "Geowill - App móvil Android para georreferenciación de planos PDF con GPS en tiempo real, digitalización, fotos de campo y exportación KML",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 8080",
+    "build:apk": "python build_apk.py"
+  },
+  "keywords": [
+    "geowill",
+    "gis",
+    "topography",
+    "georeferencing",
+    "pdf",
+    "gps",
+    "kml",
+    "android",
+    "pwa"
+  ],
+  "author": "Geowill",
+  "license": "MIT",
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/camera": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/geolocation": "^6.0.0"
+  }
+}

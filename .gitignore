@@ -1,0 +1,16 @@
+# Build Artifacts and Binary Directories
+tools/
+build_android/
+*.apk
+*.idsig
+
+# Local SSL Certificates
+cert.pem
+key.pem
+
+# OS / Editor Files
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
