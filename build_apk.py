@@ -77,6 +77,7 @@ def create_manifest_and_resources():
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
         android:hardwareAccelerated="true"
         android:usesCleartextTraffic="true">
@@ -120,9 +121,13 @@ def create_manifest_and_resources():
     # Copy Icons from generated assets
     icon_src_512 = os.path.join(BASE_DIR, 'assets', 'icon-512.png')
     icon_src_192 = os.path.join(BASE_DIR, 'assets', 'icon-192.png')
-    if os.path.exists(icon_src_192):
+    src_to_use = icon_src_512 if os.path.exists(icon_src_512) else icon_src_192
+    if os.path.exists(src_to_use):
         for density in ['mipmap-mdpi', 'mipmap-hdpi', 'mipmap-xhdpi', 'mipmap-xxhdpi', 'mipmap-xxxhdpi']:
-            shutil.copy(icon_src_192, os.path.join(BUILD_DIR, 'res', density, 'ic_launcher.png'))
+            dest_dir = os.path.join(BUILD_DIR, 'res', density)
+            os.makedirs(dest_dir, exist_ok=True)
+            shutil.copy(src_to_use, os.path.join(dest_dir, 'ic_launcher.png'))
+            shutil.copy(src_to_use, os.path.join(dest_dir, 'ic_launcher_round.png'))
 
 def create_java_source():
     print('[3/6] Creando código Java nativo (Geowill WebView, FileProvider, Cámara y Compartir KML)...')
