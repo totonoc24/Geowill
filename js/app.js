@@ -690,7 +690,7 @@ class GeoPlanApp {
   }
 
   /* ==========================================================================
-     Fullscreen Photo Lightbox Viewer
+     Fullscreen Photo Lightbox Viewer (Pinch-to-Zoom, Pan & Double-Tap)
      ========================================================================== */
   openPhotoViewer(imgSrc, title = 'Fotografía de Terreno') {
     const modal = document.getElementById('modal-photo-lightbox');
@@ -706,6 +706,10 @@ class GeoPlanApp {
 
     modal.style.display = 'flex';
     modal.classList.add('active');
+
+    // Initialize gesture listeners and reset zoom to 1.0x
+    this.initLightboxGestures();
+    this.resetLightboxZoom();
   }
 
   closePhotoViewer() {
@@ -713,6 +717,163 @@ class GeoPlanApp {
     if (!modal) return;
     modal.classList.remove('active');
     modal.style.display = 'none';
+    this.resetLightboxZoom();
+  }
+
+  initLightboxGestures() {
+    const viewport = document.getElementById('lightbox-viewport');
+    const img = document.getElementById('lightbox-image');
+    if (!viewport || !img) return;
+
+    this.lightboxState = {
+      scale: 1.0,
+      panX: 0,
+      panY: 0,
+      minScale: 1.0,
+      maxScale: 6.0,
+      isPanning: false,
+      startX: 0,
+      startY: 0,
+      startPanX: 0,
+      startPanY: 0,
+      initialDistance: 0,
+      initialScale: 1.0,
+      lastTapTime: 0
+    };
+
+    const getDistance = (t1, t2) => {
+      const dx = t1.clientX - t2.clientX;
+      const dy = t1.clientY - t2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const applyTransform = () => {
+      const s = this.lightboxState;
+      img.style.transform = `translate(${s.panX}px, ${s.panY}px) scale(${s.scale})`;
+      const badge = document.getElementById('lightbox-zoom-badge');
+      if (badge) badge.textContent = `${s.scale.toFixed(1)}x`;
+    };
+
+    this._applyLightboxTransform = applyTransform;
+
+    if (this._lightboxGesturesBound) return;
+    this._lightboxGesturesBound = true;
+
+    // Touch Start (Pinch or Drag or Double-Tap)
+    viewport.addEventListener('touchstart', (e) => {
+      const s = this.lightboxState;
+      if (!s) return;
+
+      if (e.touches.length === 2) {
+        // Pinch Zoom Start
+        s.initialDistance = getDistance(e.touches[0], e.touches[1]);
+        s.initialScale = s.scale;
+      } else if (e.touches.length === 1) {
+        // Double-Tap Detection
+        const now = Date.now();
+        if (now - s.lastTapTime < 300) {
+          if (s.scale > 1.2) {
+            this.resetLightboxZoom();
+          } else {
+            s.scale = 2.5;
+            s.panX = 0;
+            s.panY = 0;
+            applyTransform();
+          }
+          s.lastTapTime = 0;
+          return;
+        }
+        s.lastTapTime = now;
+
+        // Single Finger Pan Start
+        s.isPanning = true;
+        s.startX = e.touches[0].clientX;
+        s.startY = e.touches[0].clientY;
+        s.startPanX = s.panX;
+        s.startPanY = s.panY;
+      }
+    }, { passive: false });
+
+    // Touch Move
+    viewport.addEventListener('touchmove', (e) => {
+      const s = this.lightboxState;
+      if (!s) return;
+
+      if (e.touches.length === 2 && s.initialDistance > 0) {
+        e.preventDefault();
+        const currentDist = getDistance(e.touches[0], e.touches[1]);
+        const scaleChange = currentDist / s.initialDistance;
+        let newScale = s.initialScale * scaleChange;
+        newScale = Math.max(s.minScale, Math.min(s.maxScale, newScale));
+        s.scale = newScale;
+        applyTransform();
+      } else if (e.touches.length === 1 && s.isPanning && s.scale > 1.05) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - s.startX;
+        const dy = e.touches[0].clientY - s.startY;
+        s.panX = s.startPanX + dx;
+        s.panY = s.startPanY + dy;
+        applyTransform();
+      }
+    }, { passive: false });
+
+    // Touch End
+    viewport.addEventListener('touchend', (e) => {
+      const s = this.lightboxState;
+      if (!s) return;
+
+      if (e.touches.length < 2) {
+        s.initialDistance = 0;
+      }
+      if (e.touches.length === 0) {
+        s.isPanning = false;
+        if (s.scale <= 1.05) {
+          s.scale = 1.0;
+          s.panX = 0;
+          s.panY = 0;
+          applyTransform();
+        }
+      }
+    });
+
+    // Mouse Wheel Zoom
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const s = this.lightboxState;
+      if (!s) return;
+
+      const delta = e.deltaY < 0 ? 0.35 : -0.35;
+      let newScale = s.scale + delta;
+      newScale = Math.max(s.minScale, Math.min(s.maxScale, newScale));
+      s.scale = newScale;
+      if (s.scale <= 1.05) {
+        s.panX = 0;
+        s.panY = 0;
+      }
+      applyTransform();
+    }, { passive: false });
+  }
+
+  adjustLightboxZoom(delta) {
+    if (!this.lightboxState) this.initLightboxGestures();
+    const s = this.lightboxState;
+    let newScale = s.scale + delta;
+    newScale = Math.max(s.minScale, Math.min(s.maxScale, newScale));
+    s.scale = newScale;
+    if (s.scale <= 1.05) {
+      s.panX = 0;
+      s.panY = 0;
+    }
+    if (this._applyLightboxTransform) this._applyLightboxTransform();
+  }
+
+  resetLightboxZoom() {
+    if (!this.lightboxState) return;
+    const s = this.lightboxState;
+    s.scale = 1.0;
+    s.panX = 0;
+    s.panY = 0;
+    if (this._applyLightboxTransform) this._applyLightboxTransform();
   }
 
   /**
