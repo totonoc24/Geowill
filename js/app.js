@@ -281,6 +281,14 @@ class GeoPlanApp {
     document.getElementById('btn-share-kml-whatsapp')?.addEventListener('click', () => this.shareKmlWhatsApp());
     document.getElementById('btn-download-kml-direct')?.addEventListener('click', () => this.downloadKmlDirect());
 
+    // Point Search & Stakeout Coordinate Navigation Events
+    document.getElementById('nav-coord-crs-select')?.addEventListener('change', () => this._updateNavCoordInputsUI());
+    document.getElementById('nav-coord-c1-input')?.addEventListener('input', () => this._calculateNavCoordPreview());
+    document.getElementById('nav-coord-c2-input')?.addEventListener('input', () => this._calculateNavCoordPreview());
+    document.getElementById('btn-start-nav-from-coords')?.addEventListener('click', () => this.startNavigationFromCoordinates());
+    document.getElementById('btn-save-and-nav-coords')?.addEventListener('click', () => this.saveAndNavigateCoordinates());
+    document.getElementById('btn-view-map-coords')?.addEventListener('click', () => this.viewCoordinatesOnMap());
+
     // PDF 3-Point Calibration Wizard Events
     this._bindGeorefWizardEvents();
   }
@@ -1646,7 +1654,7 @@ class GeoPlanApp {
   /* ==========================================================================
      Point Search & Stakeout Navigation (Replanteo)
      ========================================================================== */
-  openPointSearchModal() {
+  openPointSearchModal(tab = 'list') {
     const modal = document.getElementById('modal-point-search');
     if (!modal) return;
     modal.style.display = 'flex';
@@ -1654,7 +1662,7 @@ class GeoPlanApp {
     this.currentSearchFilter = 'all';
     const input = document.getElementById('point-search-input');
     if (input) input.value = '';
-    this.renderPointSearchList();
+    this.switchPointSearchTab(tab);
   }
 
   closePointSearchModal() {
@@ -1662,6 +1670,195 @@ class GeoPlanApp {
     if (!modal) return;
     modal.style.display = 'none';
     modal.classList.remove('active');
+  }
+
+  switchPointSearchTab(tab = 'list') {
+    const btnList = document.getElementById('tab-nav-mode-list');
+    const btnCoords = document.getElementById('tab-nav-mode-coords');
+    const panelList = document.getElementById('panel-search-list-mode');
+    const panelCoords = document.getElementById('panel-search-coords-mode');
+
+    if (tab === 'list') {
+      if (btnList) {
+        btnList.style.background = 'rgba(56, 189, 248, 0.2)';
+        btnList.style.color = '#38bdf8';
+        btnList.style.borderColor = '#38bdf8';
+      }
+      if (btnCoords) {
+        btnCoords.style.background = 'transparent';
+        btnCoords.style.color = '#94a3b8';
+        btnCoords.style.borderColor = 'rgba(255,255,255,0.1)';
+      }
+      if (panelList) panelList.style.display = 'flex';
+      if (panelCoords) panelCoords.style.display = 'none';
+      this.renderPointSearchList();
+    } else {
+      if (btnCoords) {
+        btnCoords.style.background = 'rgba(56, 189, 248, 0.2)';
+        btnCoords.style.color = '#38bdf8';
+        btnCoords.style.borderColor = '#38bdf8';
+      }
+      if (btnList) {
+        btnList.style.background = 'transparent';
+        btnList.style.color = '#94a3b8';
+        btnList.style.borderColor = 'rgba(255,255,255,0.1)';
+      }
+      if (panelList) panelList.style.display = 'none';
+      if (panelCoords) panelCoords.style.display = 'block';
+      this._updateNavCoordInputsUI();
+    }
+  }
+
+  _updateNavCoordInputsUI() {
+    const crs = document.getElementById('nav-coord-crs-select')?.value || 'wgs84';
+    const lbl1 = document.getElementById('lbl-nav-coord-c1');
+    const lbl2 = document.getElementById('lbl-nav-coord-c2');
+    const inp1 = document.getElementById('nav-coord-c1-input');
+    const inp2 = document.getElementById('nav-coord-c2-input');
+
+    if (crs === 'epsg9377') {
+      if (lbl1) lbl1.textContent = 'Norte (Y) en metros:';
+      if (lbl2) lbl2.textContent = 'Este (X) en metros:';
+      if (inp1) inp1.placeholder = 'ej. 2000000.00';
+      if (inp2) inp2.placeholder = 'ej. 5000000.00';
+    } else if (crs === 'epsg3116') {
+      if (lbl1) lbl1.textContent = 'Norte (Y) en metros:';
+      if (lbl2) lbl2.textContent = 'Este (X) en metros:';
+      if (inp1) inp1.placeholder = 'ej. 1000000.00';
+      if (inp2) inp2.placeholder = 'ej. 1000000.00';
+    } else {
+      if (lbl1) lbl1.textContent = 'Latitud (Y):';
+      if (lbl2) lbl2.textContent = 'Longitud (X):';
+      if (inp1) inp1.placeholder = 'ej. 4.609712 ó 4°36\'35"N';
+      if (inp2) inp2.placeholder = 'ej. -74.081734 ó 74°04\'54"W';
+    }
+
+    this._calculateNavCoordPreview();
+  }
+
+  _getParsedNavCoordTarget() {
+    const crs = document.getElementById('nav-coord-crs-select')?.value || 'wgs84';
+    const c1 = document.getElementById('nav-coord-c1-input')?.value?.trim();
+    const c2 = document.getElementById('nav-coord-c2-input')?.value?.trim();
+
+    if (!c1 || !c2) return null;
+
+    const parsed = window.georefEngine.parseCoordinateInput(c1, c2, crs);
+    if (!parsed || isNaN(parsed.lat) || isNaN(parsed.lng)) return null;
+
+    return parsed;
+  }
+
+  _calculateNavCoordPreview() {
+    const previewBox = document.getElementById('nav-coord-preview-box');
+    const distElem = document.getElementById('nav-coord-preview-dist');
+    const bearingElem = document.getElementById('nav-coord-preview-bearing');
+
+    const target = this._getParsedNavCoordTarget();
+    const userPos = window.gpsTracker?.currentPosition;
+
+    if (!target) {
+      if (previewBox) previewBox.style.display = 'none';
+      return;
+    }
+
+    if (userPos && userPos.lat) {
+      const dist = window.navStakeout.getDistance(userPos.lat, userPos.lng, target.lat, target.lng);
+      const bearing = window.navStakeout.getBearing(userPos.lat, userPos.lng, target.lat, target.lng);
+      const cardinal = window.navStakeout.getCardinal(bearing);
+
+      if (distElem) distElem.textContent = dist >= 1000 ? `${(dist / 1000).toFixed(2)} km` : `${dist.toFixed(1)} m`;
+      if (bearingElem) bearingElem.textContent = `${bearing.toFixed(0).padStart(3, '0')}° (${cardinal})`;
+      if (previewBox) previewBox.style.display = 'block';
+    } else {
+      if (distElem) distElem.textContent = 'Esperando GPS...';
+      if (bearingElem) bearingElem.textContent = `Lat: ${target.lat.toFixed(5)}, Lng: ${target.lng.toFixed(5)}`;
+      if (previewBox) previewBox.style.display = 'block';
+    }
+  }
+
+  async startNavigationFromCoordinates() {
+    const target = this._getParsedNavCoordTarget();
+    if (!target) {
+      this.showToast('Por favor ingresa coordenadas válidas en los campos.', 'warning');
+      return;
+    }
+
+    const name = document.getElementById('nav-coord-name-input')?.value?.trim() || `Coord: ${target.lat.toFixed(5)}, ${target.lng.toFixed(5)}`;
+    const category = document.getElementById('nav-coord-category-input')?.value || 'Vértice Topográfico';
+
+    const tempFeature = {
+      id: 'coord_' + Date.now(),
+      projectId: this.currentProject.id,
+      type: 'Point',
+      coordinates: [target.lat, target.lng],
+      properties: {
+        name: name,
+        category: category,
+        color: '#10b981',
+        description: `Búsqueda por coordenadas directas (${target.lat.toFixed(7)}, ${target.lng.toFixed(7)})`
+      }
+    };
+
+    this.closePointSearchModal();
+    window.navStakeout.start(tempFeature);
+    this.showToast(`🎯 Guiando hacia: "${name}"`, 'success');
+  }
+
+  async saveAndNavigateCoordinates() {
+    const target = this._getParsedNavCoordTarget();
+    if (!target) {
+      this.showToast('Por favor ingresa coordenadas válidas en los campos.', 'warning');
+      return;
+    }
+
+    const name = document.getElementById('nav-coord-name-input')?.value?.trim() || `Punto ${new Date().toLocaleTimeString()}`;
+    const category = document.getElementById('nav-coord-category-input')?.value || 'Vértice Topográfico';
+
+    const feature = {
+      projectId: this.currentProject.id,
+      type: 'Point',
+      coordinates: [target.lat, target.lng],
+      properties: {
+        name: name,
+        category: category,
+        color: '#06b6d4',
+        description: `Creado desde ingreso de coordenadas directas (${target.lat.toFixed(7)}, ${target.lng.toFixed(7)})`,
+        photos: []
+      }
+    };
+
+    const saved = await window.db.saveFeature(feature);
+    await window.vectorEditor.loadProjectFeatures(this.currentProject.id);
+
+    this.closePointSearchModal();
+    window.navStakeout.start(saved);
+    this.showToast(`💾 Punto "${name}" guardado en el proyecto e iniciando guía`, 'success');
+  }
+
+  viewCoordinatesOnMap() {
+    const target = this._getParsedNavCoordTarget();
+    if (!target) {
+      this.showToast('Por favor ingresa coordenadas válidas en los campos.', 'warning');
+      return;
+    }
+
+    this.closePointSearchModal();
+    if (window.mapEngine.map) {
+      window.mapEngine.map.setView([target.lat, target.lng], 19);
+      L.popup()
+        .setLatLng([target.lat, target.lng])
+        .setContent(`
+          <div style="font-family: sans-serif; text-align: center; padding: 4px; min-width: 180px;">
+            <b style="color: #38bdf8;">📍 Coordenada Ubicada</b>
+            <div style="font-size: 11px; margin-top: 4px; color: #f8fafc; font-family: monospace;">${target.lat.toFixed(6)}, ${target.lng.toFixed(6)}</div>
+            <button class="btn btn-sm btn-primary" style="margin-top: 8px; width: 100%; font-weight: 700;" onclick="window.app.startNavigationToFeature({ coordinates: [${target.lat}, ${target.lng}], properties: { name: 'Punto Ubicado' } })">
+              🎯 Iniciar Replanteo
+            </button>
+          </div>
+        `)
+        .openOn(window.mapEngine.map);
+    }
   }
 
   filterPointSearchList() {

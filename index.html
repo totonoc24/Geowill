@@ -532,27 +532,124 @@
     <div class="fullscreen-modal" id="modal-point-search" style="display: none; z-index: 1400;">
       <div class="fullscreen-header">
         <h3 style="font-size: 16px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
-          🎯 Búsqueda de Puntos y Replanteo
+          🎯 Búsqueda y Replanteo de Puntos
         </h3>
         <button class="btn btn-sm btn-secondary" id="btn-close-point-search">✕ Cerrar</button>
       </div>
 
-      <!-- Search and Filter Bar -->
-      <div style="background: #1e293b; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-        <div style="position: relative; margin-bottom: 8px;">
-          <input type="text" id="point-search-input" class="form-input" placeholder="🔍 Buscar por nombre, notas, categoría..." style="padding-left: 36px; height: 42px; font-size: 13px; border-radius: 10px;">
-          <span style="position: absolute; left: 12px; top: 12px; font-size: 14px; color: #64748b;">🔍</span>
+      <!-- Navigation Mode Tabs (Lista de Puntos vs Ingresar Coordenadas) -->
+      <div style="background: #0f172a; padding: 6px 14px; display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <button class="btn btn-sm flex-1" id="tab-nav-mode-list" onclick="window.app.switchPointSearchTab('list')" style="flex: 1; font-weight: 700; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; border-radius: 8px; padding: 8px;">
+          📋 Puntos del Proyecto / KML
+        </button>
+        <button class="btn btn-sm flex-1" id="tab-nav-mode-coords" onclick="window.app.switchPointSearchTab('coords')" style="flex: 1; font-weight: 700; background: transparent; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px;">
+          🎯 Ingresar Coordenadas
+        </button>
+      </div>
+
+      <!-- ================= MODE 1: LISTA DE PUNTOS ================= -->
+      <div id="panel-search-list-mode" style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
+        <!-- Search and Filter Bar -->
+        <div style="background: #1e293b; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="position: relative; margin-bottom: 8px;">
+            <input type="text" id="point-search-input" class="form-input" placeholder="🔍 Buscar por nombre, notas, categoría..." style="padding-left: 36px; height: 42px; font-size: 13px; border-radius: 10px;">
+            <span style="position: absolute; left: 12px; top: 12px; font-size: 14px; color: #64748b;">🔍</span>
+          </div>
+          <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;">
+            <button class="btn btn-sm filter-pill active" data-filter="all" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.4);">Todos</button>
+            <button class="btn btn-sm filter-pill" data-filter="Point" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">📍 Puntos</button>
+            <button class="btn btn-sm filter-pill" data-filter="LineString" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">〰️ Líneas</button>
+            <button class="btn btn-sm filter-pill" data-filter="Polygon" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">⬡ Polígonos</button>
+          </div>
         </div>
-        <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;">
-          <button class="btn btn-sm filter-pill active" data-filter="all" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.4);">Todos</button>
-          <button class="btn btn-sm filter-pill" data-filter="Point" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">📍 Puntos</button>
-          <button class="btn btn-sm filter-pill" data-filter="LineString" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">〰️ Líneas</button>
-          <button class="btn btn-sm filter-pill" data-filter="Polygon" style="padding: 4px 10px; font-size: 11px; border-radius: 14px; background: rgba(255,255,255,0.05); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">⬡ Polígonos</button>
+
+        <div class="fullscreen-body" style="padding: 12px; overflow-y: auto; flex: 1;">
+          <div id="point-search-list-container"></div>
         </div>
       </div>
 
-      <div class="fullscreen-body" style="padding: 12px; overflow-y: auto;">
-        <div id="point-search-list-container"></div>
+      <!-- ================= MODE 2: INGRESAR COORDENADAS DIRECTAS ================= -->
+      <div id="panel-search-coords-mode" style="display: none; padding: 14px; overflow-y: auto; flex: 1; background: #0f172a;">
+        <div style="max-width: 550px; margin: 0 auto;">
+          <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 14px; margin-bottom: 14px;">
+            <h4 style="font-size: 14px; font-weight: 800; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+              <span>🧭</span> <span>Replanteo por Coordenadas</span>
+            </h4>
+            <p style="font-size: 11px; color: #94a3b8; margin-bottom: 12px;">
+              Ingresa las coordenadas del vértice o mojón para guiarte en tiempo real con distancia y brújula:
+            </p>
+
+            <!-- Sistema de Coordenadas Selector -->
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label class="form-label" style="font-size: 11px; color: #cbd5e1;">Sistema de Coordenadas (CRS):</label>
+              <select class="form-select" id="nav-coord-crs-select" style="font-size: 12px; padding: 8px; border-color: #06b6d4;">
+                <option value="wgs84">🌐 WGS84 (Latitud / Longitud en Grados Decimales o DMS)</option>
+                <option value="epsg9377">🇨🇴 EPSG:9377 (MAGNA-SIRGAS Origen Nacional - Norte / Este en metros)</option>
+                <option value="epsg3116">🇨🇴 EPSG:3116 (MAGNA-SIRGAS Bogotá - Norte / Este en metros)</option>
+              </select>
+            </div>
+
+            <!-- Coordenadas Inputs Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+              <div>
+                <label class="form-label" id="lbl-nav-coord-c1" style="font-size: 11px; color: #38bdf8;">Latitud / Norte (Y):</label>
+                <input type="text" class="form-input" id="nav-coord-c1-input" placeholder="ej. 4.609712 ó 2000000" style="font-size: 13px; font-weight: 600;">
+              </div>
+              <div>
+                <label class="form-label" id="lbl-nav-coord-c2" style="font-size: 11px; color: #38bdf8;">Longitud / Este (X):</label>
+                <input type="text" class="form-input" id="nav-coord-c2-input" placeholder="ej. -74.081734 ó 5000000" style="font-size: 13px; font-weight: 600;">
+              </div>
+            </div>
+
+            <!-- Nombre Opcional del Punto -->
+            <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px; margin-bottom: 12px;">
+              <div>
+                <label class="form-label" style="font-size: 11px; color: #cbd5e1;">Nombre del Punto (Opcional):</label>
+                <input type="text" class="form-input" id="nav-coord-name-input" placeholder="ej. Mojón M-01, Vértice 4..." style="font-size: 12px;">
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px; color: #cbd5e1;">Categoría:</label>
+                <select class="form-select" id="nav-coord-category-input" style="font-size: 11px; padding: 7px;">
+                  <option value="Vértice Topográfico">Vértice Topográfico</option>
+                  <option value="Punto de Control">Punto de Control</option>
+                  <option value="Lindero / Perímetro">Lindero</option>
+                  <option value="General">General</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Live Distance and Bearing Pre-Calculation Card -->
+            <div id="nav-coord-preview-box" style="display: none; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 10px; padding: 10px; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 10px; color: #94a3b8; font-weight: 700;">DISTANCIA DESDE TU GPS</div>
+                  <div id="nav-coord-preview-dist" style="font-size: 18px; font-weight: 900; color: #10b981; font-family: monospace;">-- m</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 10px; color: #94a3b8; font-weight: 700;">RUMBO INICIAL</div>
+                  <div id="nav-coord-preview-bearing" style="font-size: 14px; font-weight: 800; color: #38bdf8;">--°</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button class="btn btn-primary btn-block" id="btn-start-nav-from-coords" style="padding: 13px; font-size: 13px; font-weight: 800; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 16px rgba(6,182,212,0.4);">
+                <span style="font-size: 18px;">🎯</span>
+                <span>Iniciar Navegación y Replanteo</span>
+              </button>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <button class="btn btn-secondary" id="btn-save-and-nav-coords" style="padding: 10px; font-size: 11px; font-weight: 700; color: #10b981; border-color: rgba(16,185,129,0.4); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                  <span>💾</span> <span>Guardar en Proyecto</span>
+                </button>
+                <button class="btn btn-secondary" id="btn-view-map-coords" style="padding: 10px; font-size: 11px; font-weight: 700; color: #38bdf8; border-color: rgba(56,189,248,0.4); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                  <span>👁️</span> <span>Ver en el Mapa</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
