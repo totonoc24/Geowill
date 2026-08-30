@@ -680,12 +680,39 @@ class GeoPlanApp {
     this.tempFeaturePhotos.forEach((imgSrc, idx) => {
       const box = document.createElement('div');
       box.className = 'photo-thumb-box';
+      box.style.cursor = 'pointer';
       box.innerHTML = `
-        <img src="${imgSrc}" />
-        <button class="photo-delete-btn" onclick="window.app.removePhoto(${idx})">✕</button>
+        <img src="${imgSrc}" title="Toca para ver en pantalla completa" onclick="window.app.openPhotoViewer('${imgSrc}', 'Foto de Campo #${idx + 1}')" />
+        <button class="photo-delete-btn" onclick="event.stopPropagation(); window.app.removePhoto(${idx})">✕</button>
       `;
       gallery.appendChild(box);
     });
+  }
+
+  /* ==========================================================================
+     Fullscreen Photo Lightbox Viewer
+     ========================================================================== */
+  openPhotoViewer(imgSrc, title = 'Fotografía de Terreno') {
+    const modal = document.getElementById('modal-photo-lightbox');
+    const img = document.getElementById('lightbox-image');
+    const titleElem = document.getElementById('lightbox-title');
+    const subElem = document.getElementById('lightbox-subtitle');
+
+    if (!modal || !img) return;
+
+    img.src = imgSrc;
+    if (titleElem) titleElem.textContent = title;
+    if (subElem) subElem.textContent = `Proyecto: ${this.currentProject?.name || 'Geowill'} • Registro Topográfico`;
+
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+  }
+
+  closePhotoViewer() {
+    const modal = document.getElementById('modal-photo-lightbox');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.style.display = 'none';
   }
 
   /**

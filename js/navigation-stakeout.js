@@ -331,6 +331,30 @@ class NavigationStakeout {
   }
 
   /**
+   * Toggles 180° compass calibration for devices with reversed sensors
+   */
+  toggleCompassInversion() {
+    const current = localStorage.getItem('geowill_compass_invert') === 'true';
+    const nextVal = !current;
+    localStorage.setItem('geowill_compass_invert', String(nextVal));
+
+    if (window.gpsTracker) {
+      window.gpsTracker.heading = (window.gpsTracker.heading + 180) % 360;
+    }
+
+    if (this.lastStats) {
+      this.lastStats.userHeading = (this.lastStats.userHeading + 180) % 360;
+      const turnInfo = this.getTurnInstruction(this.lastStats.bearing, this.lastStats.userHeading);
+      this.lastStats.turnAngle = turnInfo.angle;
+      this.lastStats.turnText = turnInfo.text;
+      this.lastStats.turnIcon = turnInfo.icon;
+      this._renderHud(this.lastStats);
+    }
+
+    window.app?.showToast(nextVal ? '🔄 Brújula invertida 180° (Modo calibrado)' : '🧭 Brújula restablecida a modo estándar', 'info');
+  }
+
+  /**
    * Calculates turn instruction relative to user heading
    * @param {number} targetBearing - Azimuth to target (0 - 360)
    * @param {number} userHeading - Direction user is facing (0 - 360)
@@ -339,8 +363,10 @@ class NavigationStakeout {
     let diff = (targetBearing - userHeading + 540) % 360 - 180; // Range: -180 to +180
 
     const absDiff = Math.abs(diff);
-    if (absDiff <= 8) {
+    if (absDiff <= 12) {
       return { angle: diff, text: '¡Sigue de Frente!', icon: '⬆️' };
+    } else if (absDiff >= 165) {
+      return { angle: diff, text: '¡Da la Vuelta (Detrás)!', icon: '⬇️' };
     } else if (diff > 0) {
       return { angle: diff, text: `Gira ${absDiff.toFixed(0)}° a la Derecha`, icon: '➡️' };
     } else {

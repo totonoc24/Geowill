@@ -335,25 +335,37 @@ class GpsTracker {
    * Initializes device orientation sensor for digital compass heading
    */
   _initCompass() {
-    if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientation', (e) => {
-        let heading = null;
-        if (e.webkitCompassHeading) {
-          // iOS Safari
-          heading = e.webkitCompassHeading;
-        } else if (e.alpha !== null) {
-          // Android Chrome / Standard
-          heading = 360 - e.alpha;
-        }
+    const handleOrientation = (e) => {
+      let heading = null;
+      if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+        // iOS Safari: 0° is North, rotates clockwise (0 to 360)
+        heading = e.webkitCompassHeading;
+      } else if (e.alpha !== null) {
+        // Android Chrome / Standard DeviceOrientation
+        // In Android, alpha is 0 at North and increases counter-clockwise
+        heading = (360 - e.alpha) % 360;
+      }
 
-        if (heading !== null && !isNaN(heading)) {
-          this.heading = heading;
-          this._updateHeadingIndicator(heading);
+      if (heading !== null && !isNaN(heading)) {
+        // Check if user has toggled 180° compass calibration
+        const isCalibrated180 = localStorage.getItem('geowill_compass_invert') === 'true';
+        let finalHeading = (heading + (isCalibrated180 ? 180 : 0) + 360) % 360;
+
+        // If not moving fast, use magnetic compass heading
+        if (!this.currentPosition || parseFloat(this.currentPosition.speed || '0') < 1.8) {
+          this.heading = finalHeading;
+          this._updateHeadingIndicator(this.heading);
           if (this.onHeadingUpdate) {
-            this.onHeadingUpdate(heading);
+            this.onHeadingUpdate(this.heading);
           }
         }
-      }, true);
+      }
+    };
+
+    if ('ondeviceorientationabsolute' in window) {
+      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    } else if (window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientation', handleOrientation, true);
     }
   }
 
@@ -408,20 +420,35 @@ class GpsTracker {
 
   _handlePositionSuccess(pos) {
     const { latitude, longitude, accuracy, altitude, speed, heading } = pos.coords;
+    const speedKmh = speed !== null && speed >= 0 ? (speed * 3.6).toFixed(1) : '0.0';
     
+    // Calculate dynamic Course Over Ground from consecutive GPS fixes
+    let currentHeading = this.heading;
+    if (heading !== null && !isNaN(heading) && heading >= 0) {
+      currentHeading = heading;
+    } else if (this.currentPosition && parseFloat(speedKmh) > 1.2) {
+      const d = this._haversineDistance(this.currentPosition.lat, this.currentPosition.lng, latitude, longitude);
+      if (d >= 1.5) {
+        // Physical displacement bearing
+        const y = Math.sin(((longitude - this.currentPosition.lng) * Math.PI) / 180) * Math.cos((latitude * Math.PI) / 180);
+        const x = Math.cos((this.currentPosition.lat * Math.PI) / 180) * Math.sin((latitude * Math.PI) / 180) -
+                  Math.sin((this.currentPosition.lat * Math.PI) / 180) * Math.cos((latitude * Math.PI) / 180) * Math.cos(((longitude - this.currentPosition.lng) * Math.PI) / 180);
+        const movBearing = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+        currentHeading = movBearing;
+      }
+    }
+
+    this.heading = currentHeading;
+
     this.currentPosition = {
       lat: latitude,
       lng: longitude,
       accuracy: accuracy || 0,
       altitude: altitude !== null ? altitude : 0,
-      speed: speed !== null ? (speed * 3.6).toFixed(1) : '0.0', // Convert m/s to km/h
-      heading: heading !== null ? heading : this.heading,
+      speed: speedKmh,
+      heading: currentHeading,
       timestamp: pos.timestamp
     };
-
-    if (heading !== null) {
-      this.heading = heading;
-    }
 
     if (this.onStatusChange) this.onStatusChange('active', 'GPS Conectado');
     if (this.onPositionUpdate) this.onPositionUpdate(this.currentPosition);

@@ -358,9 +358,24 @@ class VectorEditor {
         metricsHtml = `<div><b>Área:</b> ${(props.area/10000).toFixed(2)} ha (${props.area.toFixed(1)} m²)</div>`;
       }
 
-      const photoThumb = props.photos && props.photos.length > 0 
-        ? `<div style="margin-top:6px;"><img src="${props.photos[0]}" style="width:100%; max-height:100px; object-fit:cover; border-radius:6px;"></div>`
-        : '';
+      let photoThumb = '';
+      if (props.photos && props.photos.length > 0) {
+        const firstPhoto = props.photos[0];
+        const safeName = (props.name || 'Entidad').replace(/'/g, "\\'");
+        const countBadge = props.photos.length > 1 
+          ? `<span style="position: absolute; top: 6px; right: 6px; background: rgba(15, 23, 42, 0.85); color: #38bdf8; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.4);">📸 1 de ${props.photos.length}</span>` 
+          : '';
+
+        photoThumb = `
+          <div style="margin-top: 8px; position: relative; cursor: pointer; border-radius: 8px; overflow: hidden; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 4px 12px rgba(0,0,0,0.3);" onclick="window.app.openPhotoViewer('${firstPhoto}', '${safeName}')">
+            <img src="${firstPhoto}" style="width: 100%; max-height: 120px; object-fit: cover; display: block;">
+            ${countBadge}
+            <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(15,23,42,0.9), transparent); padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px; color: #38bdf8; font-size: 10px; font-weight: 700;">
+              <span>🔍</span> <span>Toca para ver en Pantalla Completa</span>
+            </div>
+          </div>
+        `;
+      }
 
       const popupHtml = `
         <div class="popup-feature-card">

@@ -60,17 +60,31 @@ class KmlExporter {
 
     let kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
-  <Document>
+  <Document id="Geowill_Project">
     <name><![CDATA[${docTitle}]]></name>
     <open>1</open>
     <description><![CDATA[Exportado desde Geowill Android GIS el ${dateDisplay} a las ${new Date().toLocaleTimeString()}]]></description>
+
+    <!-- Schema Definition for ArcGIS Pro and QGIS Attribute Tables -->
+    <Schema name="GeowillAttributes" id="GeowillAttributes">
+      <SimpleField name="Nombre" type="string"><displayName>Nombre</displayName></SimpleField>
+      <SimpleField name="Categoria" type="string"><displayName>Categoría</displayName></SimpleField>
+      <SimpleField name="Descripcion" type="string"><displayName>Descripción</displayName></SimpleField>
+      <SimpleField name="Longitud_m" type="double"><displayName>Longitud (m)</displayName></SimpleField>
+      <SimpleField name="Area_m2" type="double"><displayName>Área (m²)</displayName></SimpleField>
+      <SimpleField name="Area_ha" type="double"><displayName>Área (ha)</displayName></SimpleField>
+      <SimpleField name="Perimetro_m" type="double"><displayName>Perímetro (m)</displayName></SimpleField>
+      <SimpleField name="Latitud" type="double"><displayName>Latitud</displayName></SimpleField>
+      <SimpleField name="Longitud" type="double"><displayName>Longitud</displayName></SimpleField>
+      <SimpleField name="Fecha" type="string"><displayName>Fecha</displayName></SimpleField>
+    </Schema>
 
     <!-- Global Styles -->
     <Style id="pointStyle">
       <IconStyle>
         <scale>1.1</scale>
         <Icon>
-          <href>https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+          <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
         </Icon>
         <color>ff147efb</color>
       </IconStyle>
@@ -97,34 +111,34 @@ class KmlExporter {
 
     // Folder: Puntos
     if (points.length > 0) {
-      kml += `    <Folder>\n      <name>Puntos de Interés / Vértices</name>\n      <open>1</open>\n`;
-      points.forEach(f => {
-        kml += this._generatePlacemarkPoint(f);
+      kml += `    <Folder id="folder_puntos">\n      <name>Puntos de Interés / Vértices</name>\n      <open>1</open>\n`;
+      points.forEach((f, i) => {
+        kml += this._generatePlacemarkPoint(f, i);
       });
       kml += `    </Folder>\n`;
     }
 
     // Folder: Líneas
     if (lines.length > 0) {
-      kml += `    <Folder>\n      <name>Líneas y Linderos</name>\n      <open>1</open>\n`;
-      lines.forEach(f => {
-        kml += this._generatePlacemarkLine(f);
+      kml += `    <Folder id="folder_lineas">\n      <name>Líneas y Linderos</name>\n      <open>1</open>\n`;
+      lines.forEach((f, i) => {
+        kml += this._generatePlacemarkLine(f, i);
       });
       kml += `    </Folder>\n`;
     }
 
     // Folder: Polígonos
     if (polygons.length > 0) {
-      kml += `    <Folder>\n      <name>Polígonos y Áreas</name>\n      <open>1</open>\n`;
-      polygons.forEach(f => {
-        kml += this._generatePlacemarkPolygon(f);
+      kml += `    <Folder id="folder_poligonos">\n      <name>Polígonos y Áreas</name>\n      <open>1</open>\n`;
+      polygons.forEach((f, i) => {
+        kml += this._generatePlacemarkPolygon(f, i);
       });
       kml += `    </Folder>\n`;
     }
 
     // Georeferenced PDF Neatline polygon if available
     if (pdfPlan && pdfPlan.georef && pdfPlan.georef.cornersGeo) {
-      kml += `    <Folder>\n      <name>Límites Plano Georreferenciado</name>\n`;
+      kml += `    <Folder id="folder_plano_pdf">\n      <name>Límites Plano Georreferenciado</name>\n`;
       kml += this._generatePdfNeatlinePlacemark(pdfPlan);
       kml += `    </Folder>\n`;
     }
@@ -133,41 +147,48 @@ class KmlExporter {
     return kml;
   }
 
-  _generatePlacemarkPoint(f) {
+  _generatePlacemarkPoint(f, index = 0) {
     const props = f.properties || {};
     const [lat, lng] = f.coordinates;
     const colorKml = this.hexToKmlColor(props.color, 'ff');
     const descHtml = this._buildDescriptionHtml(props, [lat, lng], 'Punto');
+    const safeId = `point_${f.id || index}`;
 
-    return `      <Placemark>
+    return `      <Placemark id="${safeId}">
         <name><![CDATA[${props.name || 'Punto'}]]></name>
         <description><![CDATA[${descHtml}]]></description>
         <Style>
           <IconStyle>
             <color>${colorKml}</color>
             <scale>1.1</scale>
-            <Icon><href>https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
+            <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
           </IconStyle>
         </Style>
         <ExtendedData>
-          <Data name="Categoría"><value><![CDATA[${props.category || ''}]]></value></Data>
-          <Data name="Latitud"><value>${lat.toFixed(7)}</value></Data>
-          <Data name="Longitud"><value>${lng.toFixed(7)}</value></Data>
-          <Data name="Fecha"><value>${new Date(f.createdAt || Date.now()).toISOString()}</value></Data>
+          <SchemaData schemaUrl="#GeowillAttributes">
+            <SimpleData name="Nombre"><![CDATA[${props.name || 'Punto'}]]></SimpleData>
+            <SimpleData name="Categoria"><![CDATA[${props.category || 'General'}]]></SimpleData>
+            <SimpleData name="Descripcion"><![CDATA[${props.description || ''}]]></SimpleData>
+            <SimpleData name="Latitud">${lat.toFixed(7)}</SimpleData>
+            <SimpleData name="Longitud">${lng.toFixed(7)}</SimpleData>
+            <SimpleData name="Fecha">${new Date(f.createdAt || Date.now()).toISOString()}</SimpleData>
+          </SchemaData>
         </ExtendedData>
         <Point>
+          <altitudeMode>clampToGround</altitudeMode>
           <coordinates>${lng.toFixed(7)},${lat.toFixed(7)},0</coordinates>
         </Point>
       </Placemark>\n`;
   }
 
-  _generatePlacemarkLine(f) {
+  _generatePlacemarkLine(f, index = 0) {
     const props = f.properties || {};
     const coordsStr = f.coordinates.map(c => `${c[1].toFixed(7)},${c[0].toFixed(7)},0`).join(' ');
     const colorKml = this.hexToKmlColor(props.color, 'ff');
     const descHtml = this._buildDescriptionHtml(props, null, 'Línea');
+    const safeId = `line_${f.id || index}`;
 
-    return `      <Placemark>
+    return `      <Placemark id="${safeId}">
         <name><![CDATA[${props.name || 'Línea'}]]></name>
         <description><![CDATA[${descHtml}]]></description>
         <Style>
@@ -177,18 +198,23 @@ class KmlExporter {
           </LineStyle>
         </Style>
         <ExtendedData>
-          <Data name="Categoría"><value><![CDATA[${props.category || ''}]]></value></Data>
-          <Data name="Longitud_m"><value>${(props.length || 0).toFixed(2)}</value></Data>
-          <Data name="Fecha"><value>${new Date(f.createdAt || Date.now()).toISOString()}</value></Data>
+          <SchemaData schemaUrl="#GeowillAttributes">
+            <SimpleData name="Nombre"><![CDATA[${props.name || 'Línea'}]]></SimpleData>
+            <SimpleData name="Categoria"><![CDATA[${props.category || 'General'}]]></SimpleData>
+            <SimpleData name="Descripcion"><![CDATA[${props.description || ''}]]></SimpleData>
+            <SimpleData name="Longitud_m">${(props.length || 0).toFixed(2)}</SimpleData>
+            <SimpleData name="Fecha">${new Date(f.createdAt || Date.now()).toISOString()}</SimpleData>
+          </SchemaData>
         </ExtendedData>
         <LineString>
           <tessellate>1</tessellate>
+          <altitudeMode>clampToGround</altitudeMode>
           <coordinates>${coordsStr}</coordinates>
         </LineString>
       </Placemark>\n`;
   }
 
-  _generatePlacemarkPolygon(f) {
+  _generatePlacemarkPolygon(f, index = 0) {
     const props = f.properties || {};
     // Ensure polygon loop is closed
     const ring = [...f.coordinates];
@@ -199,8 +225,9 @@ class KmlExporter {
     const lineCol = this.hexToKmlColor(props.color, 'ff');
     const polyCol = this.hexToKmlColor(props.color, '4d'); // 30% alpha
     const descHtml = this._buildDescriptionHtml(props, null, 'Polígono');
+    const safeId = `poly_${f.id || index}`;
 
-    return `      <Placemark>
+    return `      <Placemark id="${safeId}">
         <name><![CDATA[${props.name || 'Polígono'}]]></name>
         <description><![CDATA[${descHtml}]]></description>
         <Style>
@@ -213,14 +240,19 @@ class KmlExporter {
           </PolyStyle>
         </Style>
         <ExtendedData>
-          <Data name="Categoría"><value><![CDATA[${props.category || ''}]]></value></Data>
-          <Data name="Área_m2"><value>${(props.area || 0).toFixed(2)}</value></Data>
-          <Data name="Área_ha"><value>${((props.area || 0) / 10000).toFixed(3)}</value></Data>
-          <Data name="Perímetro_m"><value>${(props.perimeter || 0).toFixed(2)}</value></Data>
-          <Data name="Fecha"><value>${new Date(f.createdAt || Date.now()).toISOString()}</value></Data>
+          <SchemaData schemaUrl="#GeowillAttributes">
+            <SimpleData name="Nombre"><![CDATA[${props.name || 'Polígono'}]]></SimpleData>
+            <SimpleData name="Categoria"><![CDATA[${props.category || 'General'}]]></SimpleData>
+            <SimpleData name="Descripcion"><![CDATA[${props.description || ''}]]></SimpleData>
+            <SimpleData name="Area_m2">${(props.area || 0).toFixed(2)}</SimpleData>
+            <SimpleData name="Area_ha">${((props.area || 0) / 10000).toFixed(3)}</SimpleData>
+            <SimpleData name="Perimetro_m">${(props.perimeter || 0).toFixed(2)}</SimpleData>
+            <SimpleData name="Fecha">${new Date(f.createdAt || Date.now()).toISOString()}</SimpleData>
+          </SchemaData>
         </ExtendedData>
         <Polygon>
           <tessellate>1</tessellate>
+          <altitudeMode>clampToGround</altitudeMode>
           <outerBoundaryIs>
             <LinearRing>
               <coordinates>${coordsStr}</coordinates>
@@ -235,13 +267,15 @@ class KmlExporter {
     const ring = [corners[0], corners[1], corners[2], corners[3], corners[0]];
     const coordsStr = ring.map(c => `${c.lng.toFixed(7)},${c.lat.toFixed(7)},0`).join(' ');
 
-    return `      <Placemark>
+    return `      <Placemark id="pdf_neatline">
         <name><![CDATA[Huella Plano: ${pdfPlan.name || 'PDF'}]]></name>
         <Style>
           <LineStyle><color>ff38bdf8</color><width>2</width></LineStyle>
           <PolyStyle><color>2038bdf8</color></PolyStyle>
         </Style>
         <Polygon>
+          <tessellate>1</tessellate>
+          <altitudeMode>clampToGround</altitudeMode>
           <outerBoundaryIs>
             <LinearRing>
               <coordinates>${coordsStr}</coordinates>
@@ -252,25 +286,17 @@ class KmlExporter {
   }
 
   _buildDescriptionHtml(props, coords, typeStr) {
-    let html = `<div style="font-family:sans-serif; min-width:240px; padding:4px;">
+    let html = `<div style="font-family:sans-serif; min-width:220px; padding:4px;">
       <h3 style="color:#0284c7; margin:0 0 6px 0;">${props.name || typeStr}</h3>
-      <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:8px;">
-        <tr><td style="color:#64748b; padding:3px 0;"><b>Categoría:</b></td><td>${props.category || 'General'}</td></tr>
-        ${coords ? `<tr><td style="color:#64748b; padding:3px 0;"><b>Coordenadas:</b></td><td>${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}</td></tr>` : ''}
-        ${props.length ? `<tr><td style="color:#64748b; padding:3px 0;"><b>Longitud:</b></td><td>${props.length > 1000 ? (props.length/1000).toFixed(3) + ' km' : props.length.toFixed(1) + ' m'}</td></tr>` : ''}
-        ${props.area ? `<tr><td style="color:#64748b; padding:3px 0;"><b>Área:</b></td><td>${(props.area/10000).toFixed(2)} ha (${props.area.toFixed(1)} m²)</td></tr>` : ''}
+      <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:6px;">
+        <tr><td style="color:#64748b; padding:2px 0;"><b>Categoría:</b></td><td>${props.category || 'General'}</td></tr>
+        ${coords ? `<tr><td style="color:#64748b; padding:2px 0;"><b>Coordenadas:</b></td><td>${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}</td></tr>` : ''}
+        ${props.length ? `<tr><td style="color:#64748b; padding:2px 0;"><b>Longitud:</b></td><td>${props.length > 1000 ? (props.length/1000).toFixed(3) + ' km' : props.length.toFixed(1) + ' m'}</td></tr>` : ''}
+        ${props.area ? `<tr><td style="color:#64748b; padding:2px 0;"><b>Área:</b></td><td>${(props.area/10000).toFixed(2)} ha (${props.area.toFixed(1)} m²)</td></tr>` : ''}
+        ${props.photos && props.photos.length > 0 ? `<tr><td style="color:#64748b; padding:2px 0;"><b>Fotografías:</b></td><td>📸 ${props.photos.length} foto(s) de campo</td></tr>` : ''}
       </table>
-      ${props.description ? `<p style="font-size:12px; margin:6px 0; background:#f1f5f9; padding:6px; border-radius:4px;">${props.description}</p>` : ''}`;
-
-    if (props.photos && props.photos.length > 0) {
-      html += `<div style="margin-top:8px;"><b>Fotografías (${props.photos.length}):</b><div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">`;
-      props.photos.forEach(imgData => {
-        html += `<img src="${imgData}" style="max-width:280px; max-height:200px; border-radius:4px; object-fit:cover; border:1px solid #cbd5e1;"/>`;
-      });
-      html += `</div></div>`;
-    }
-
-    html += `</div>`;
+      ${props.description ? `<p style="font-size:12px; margin:4px 0; background:#f1f5f9; padding:6px; border-radius:4px; color:#1e293b;">${props.description}</p>` : ''}
+    </div>`;
     return html;
   }
 
