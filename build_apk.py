@@ -500,6 +500,8 @@ import android.provider.MediaStore;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.Manifest;
 import android.os.Build;
 import android.os.Environment;
@@ -763,6 +765,39 @@ public class MainActivity extends Activity {
 
                 if (bmp != null) {
                     try {
+                        // Check EXIF orientation or rotate 90 degrees clockwise (a la derecha)
+                        int rotate = 0;
+                        if (cameraPhotoPath != null) {
+                            try {
+                                ExifInterface exif = new ExifInterface(cameraPhotoPath);
+                                int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED);
+                                if (orientation == ExifInterface.ORIENTATION_ROTATE_90) {
+                                    rotate = 90;
+                                } else if (orientation == ExifInterface.ORIENTATION_ROTATE_180) {
+                                    rotate = 180;
+                                } else if (orientation == ExifInterface.ORIENTATION_ROTATE_270) {
+                                    rotate = 270;
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                        // If EXIF orientation is not present or normal, rotate 90 degrees clockwise (a la derecha)
+                        if (rotate == 0) {
+                            rotate = 90;
+                        }
+
+                        if (rotate != 0) {
+                            Matrix matrix = new Matrix();
+                            matrix.postRotate(rotate);
+                            Bitmap rotatedBmp = Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), matrix, true);
+                            if (rotatedBmp != bmp) {
+                                bmp.recycle();
+                                bmp = rotatedBmp;
+                            }
+                        }
+
                         int w = bmp.getWidth();
                         int h = bmp.getHeight();
                         int max = 1280;
@@ -774,7 +809,11 @@ public class MainActivity extends Activity {
                                 w = (w * max) / h;
                                 h = max;
                             }
-                            bmp = Bitmap.createScaledBitmap(bmp, w, h, true);
+                            Bitmap scaledBmp = Bitmap.createScaledBitmap(bmp, w, h, true);
+                            if (scaledBmp != bmp) {
+                                bmp.recycle();
+                                bmp = scaledBmp;
+                            }
                         }
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
                         bmp.compress(Bitmap.CompressFormat.JPEG, 82, baos);

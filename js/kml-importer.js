@@ -104,9 +104,10 @@ class KmlImporter {
     const nameNode = this._getChildByTagName(pm, 'name');
     const name = nameNode ? nameNode.textContent.trim() : `Elemento ${index}`;
 
-    // Placemark Description
+    // Placemark Description and Embedded Photos
     const descNode = this._getChildByTagName(pm, 'description');
     let description = descNode ? this._cleanHtmlDescription(descNode.textContent) : '';
+    let photos = descNode ? this._extractPhotosFromDescription(descNode.textContent) : [];
 
     // Folder Category (if nested)
     let category = 'KML Importado';
@@ -138,7 +139,7 @@ class KmlImporter {
               description: description,
               altitude: pt.alt || 0,
               color: color || '#f43f5e',
-              photos: []
+              photos: photos
             }
           });
         }
@@ -163,7 +164,7 @@ class KmlImporter {
               description: description,
               length: lengthMeters,
               color: color || '#06b6d4',
-              photos: []
+              photos: photos
             }
           });
         }
@@ -192,7 +193,7 @@ class KmlImporter {
               description: description,
               area: areaSqMeters,
               color: color || '#10b981',
-              photos: []
+              photos: photos
             }
           });
         }
@@ -360,6 +361,25 @@ class KmlImporter {
       total += (lon2 - lon1) * (2 + Math.sin(lat1) + Math.sin(lat2));
     }
     return Math.abs((total * R * R) / 2.0);
+  }
+
+  _extractPhotosFromDescription(desc) {
+    if (!desc) return [];
+    const photos = [];
+    try {
+      const temp = document.createElement('div');
+      temp.innerHTML = desc;
+      const imgs = temp.getElementsByTagName('img');
+      for (let i = 0; i < imgs.length; i++) {
+        const src = imgs[i].getAttribute('src');
+        if (src && (src.startsWith('data:image/') || src.startsWith('http://') || src.startsWith('https://'))) {
+          photos.push(src);
+        }
+      }
+    } catch (e) {
+      console.warn('Error extracting photos from KML description:', e);
+    }
+    return photos;
   }
 
   _cleanHtmlDescription(desc) {

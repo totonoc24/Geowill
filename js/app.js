@@ -690,17 +690,87 @@ class GeoPlanApp {
       box.className = 'photo-thumb-box';
       box.style.cursor = 'pointer';
       box.innerHTML = `
-        <img src="${imgSrc}" title="Toca para ver en pantalla completa" onclick="window.app.openPhotoViewer('${imgSrc}', 'Foto de Campo #${idx + 1}')" />
-        <button class="photo-delete-btn" onclick="event.stopPropagation(); window.app.removePhoto(${idx})">✕</button>
+        <img src="${imgSrc}" title="Toca para ver en pantalla completa" onclick="window.app.openPhotoViewer('${imgSrc}', 'Foto de Campo #${idx + 1}', ${idx})" />
+        <button class="photo-rotate-btn" title="Girar 90° a la derecha" onclick="event.stopPropagation(); window.app.rotatePhotoAtIndex(${idx})">🔄</button>
+        <button class="photo-delete-btn" title="Eliminar foto" onclick="event.stopPropagation(); window.app.removePhoto(${idx})">✕</button>
       `;
       gallery.appendChild(box);
     });
   }
 
+  /**
+   * Rotates a base64 / dataUrl image by given degrees (default 90 clockwise)
+   */
+  async rotateDataUrl(dataUrl, degrees = 90) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const isOrthogonal = Math.abs(degrees % 180) === 90;
+          canvas.width = isOrthogonal ? img.height : img.width;
+          canvas.height = isOrthogonal ? img.width : img.height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((degrees * Math.PI) / 180);
+          ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.onerror = (e) => reject(e);
+      img.src = dataUrl;
+    });
+  }
+
+  /**
+   * Rotate a specific photo in the form's temporary photo list by 90 deg clockwise
+   */
+  async rotatePhotoAtIndex(index, degrees = 90) {
+    if (this.tempFeaturePhotos && this.tempFeaturePhotos[index]) {
+      try {
+        const rotated = await this.rotateDataUrl(this.tempFeaturePhotos[index], degrees);
+        this.tempFeaturePhotos[index] = rotated;
+        this._renderPhotoThumbnails();
+        this.showToast('📸 Foto girada 90° a la derecha', 'success');
+      } catch (err) {
+        console.error('Error rotating photo:', err);
+        this.showToast('No se pudo girar la foto', 'danger');
+      }
+    }
+  }
+
+  /**
+   * Rotate the photo currently displayed in the Lightbox viewer
+   */
+  async rotateCurrentLightboxPhoto(degrees = 90) {
+    const img = document.getElementById('lightbox-image');
+    if (!img || !img.src) return;
+
+    try {
+      const rotated = await this.rotateDataUrl(img.src, degrees);
+      img.src = rotated;
+      this.resetLightboxZoom();
+
+      // If viewing a photo from the active feature form draft
+      if (this.currentLightboxIndex !== null && this.currentLightboxIndex !== undefined && this.tempFeaturePhotos[this.currentLightboxIndex]) {
+        this.tempFeaturePhotos[this.currentLightboxIndex] = rotated;
+        this._renderPhotoThumbnails();
+      }
+      this.showToast('📸 Foto girada 90° a la derecha', 'success');
+    } catch (err) {
+      console.error('Error rotating lightbox image:', err);
+      this.showToast('No se pudo girar la foto', 'danger');
+    }
+  }
+
   /* ==========================================================================
      Fullscreen Photo Lightbox Viewer (Pinch-to-Zoom, Pan & Double-Tap)
      ========================================================================== */
-  openPhotoViewer(imgSrc, title = 'Fotografía de Terreno') {
+  openPhotoViewer(imgSrc, title = 'Fotografía de Terreno', photoIndex = null) {
     const modal = document.getElementById('modal-photo-lightbox');
     const img = document.getElementById('lightbox-image');
     const titleElem = document.getElementById('lightbox-title');
@@ -708,6 +778,7 @@ class GeoPlanApp {
 
     if (!modal || !img) return;
 
+    this.currentLightboxIndex = photoIndex;
     img.src = imgSrc;
     if (titleElem) titleElem.textContent = title;
     if (subElem) subElem.textContent = `Proyecto: ${this.currentProject?.name || 'Geowill'} • Registro Topográfico`;
@@ -725,6 +796,7 @@ class GeoPlanApp {
     if (!modal) return;
     modal.classList.remove('active');
     modal.style.display = 'none';
+    this.currentLightboxIndex = null;
     this.resetLightboxZoom();
   }
 
@@ -902,10 +974,25 @@ class GeoPlanApp {
   async _handlePhotoSelected(e) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    const isCameraInput = e.target.id === 'camera-direct-input';
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const compressedBase64 = await this._compressImage(file);
+      let compressedBase64 = await this._compressImage(file);
+
+      // If photo was taken with camera while phone is held in portrait, but image is landscape (width > height), rotate 90° clockwise
+      if (isCameraInput) {
+        try {
+          const img = new Image();
+          await new Promise((res) => { img.onload = res; img.onerror = res; img.src = compressedBase64; });
+          if (img.width > img.height && window.innerHeight > window.innerWidth) {
+            compressedBase64 = await this.rotateDataUrl(compressedBase64, 90);
+          }
+        } catch (err) {
+          console.warn('Auto-rotation check failed:', err);
+        }
+      }
+
       this.tempFeaturePhotos.push(compressedBase64);
     }
     this._renderPhotoThumbnails();
@@ -913,9 +1000,41 @@ class GeoPlanApp {
   }
 
   /**
-   * Compresses uploaded photo using OffscreenCanvas to save memory in IndexedDB
+   * Compresses uploaded photo using createImageBitmap with EXIF orientation support
    */
-  async _compressImage(file, maxDimension = 1280, quality = 0.78) {
+  async _compressImage(file, maxDimension = 1280, quality = 0.82) {
+    // Attempt 1: Modern W3C createImageBitmap with automatic EXIF orientation
+    if (typeof window.createImageBitmap === 'function') {
+      try {
+        const bitmap = await window.createImageBitmap(file, { imageOrientation: 'from-image' });
+        let width = bitmap.width;
+        let height = bitmap.height;
+
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        bitmap.close();
+        return canvas.toDataURL('image/jpeg', quality);
+      } catch (e) {
+        console.warn('createImageBitmap with EXIF failed, falling back to FileReader:', e);
+      }
+    }
+
+    // Attempt 2: Fallback with FileReader + Image
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (readerEvent) => {
@@ -943,8 +1062,10 @@ class GeoPlanApp {
           ctx.drawImage(img, 0, 0, width, height);
           resolve(canvas.toDataURL('image/jpeg', quality));
         };
+        img.onerror = () => resolve('');
         img.src = readerEvent.target.result;
       };
+      reader.onerror = () => resolve('');
       reader.readAsDataURL(file);
     });
   }
@@ -1593,61 +1714,52 @@ class GeoPlanApp {
   }
 
   async shareKmlWhatsApp() {
-    try {
-      this.showToast('Preparando archivo KML para compartir...', 'info');
-      const features = await window.db.getFeaturesByProject(this.currentProject.id);
-      const kmlString = window.kmlExporter.generateKmlString(this.currentProject.name, features, this.currentPdfPlan);
-      const { fileName, docTitle } = window.kmlExporter.getFormattedExportName(this.currentProject.name);
+    this.closeExportKmlModal();
+    if (!this.currentProject) {
+      this.showToast('Seleccione un proyecto primero', 'warning');
+      return;
+    }
+    this.showToast('Preparando archivo KML optimizado...', 'info');
 
-      if (window.AndroidNative && typeof window.AndroidNative.shareKmlFile === 'function') {
-        window.AndroidNative.shareKmlFile(fileName, kmlString, docTitle);
-        document.getElementById('modal-export-kml')?.classList.remove('active');
-      } else if (window.AndroidNative && typeof window.AndroidNative.shareKml === 'function') {
-        window.AndroidNative.shareKml(kmlString, fileName);
-        document.getElementById('modal-export-kml')?.classList.remove('active');
-      } else if (navigator.share) {
-        try {
-          const file = new File([kmlString], fileName, { type: 'application/vnd.google-earth.kml+xml' });
-          await navigator.share({
-            title: docTitle,
-            text: `Levantamiento topográfico Geowill: ${docTitle}`,
-            files: [file]
-          });
-          document.getElementById('modal-export-kml')?.classList.remove('active');
-        } catch (shareErr) {
-          console.warn('navigator.share failed, fallback to direct download:', shareErr);
-          this.downloadKmlDirect();
-        }
-      } else {
-        this.downloadKmlDirect();
-      }
-    } catch (err) {
-      console.error('Error sharing KML:', err);
-      this.downloadKmlDirect();
+    const features = await window.db.getFeaturesByProject(this.currentProject.id);
+    if (features.length === 0 && !this.currentPdfPlan) {
+      this.showToast('No hay entidades digitalizadas ni plano para exportar.', 'warning');
+      return;
+    }
+
+    const res = await window.kmlExporter.shareViaNativeOrWebShare(
+      this.currentProject.name,
+      features,
+      this.currentPdfPlan
+    );
+
+    if (res.success && res.method !== 'aborted') {
+      this.showToast('Levantamiento KML listo para enviar / abrir', 'success');
     }
   }
 
   async downloadKmlDirect() {
-    try {
-      const features = await window.db.getFeaturesByProject(this.currentProject.id);
-      const kmlString = window.kmlExporter.generateKmlString(this.currentProject.name, features, this.currentPdfPlan);
-      const { fileName } = window.kmlExporter.getFormattedExportName(this.currentProject.name);
+    this.closeExportKmlModal();
+    if (!this.currentProject) {
+      this.showToast('Seleccione un proyecto primero', 'warning');
+      return;
+    }
+    this.showToast('Descargando archivo KML optimizado...', 'info');
 
-      const blob = new Blob([kmlString], { type: 'application/vnd.google-earth.kml+xml;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    const features = await window.db.getFeaturesByProject(this.currentProject.id);
+    if (features.length === 0 && !this.currentPdfPlan) {
+      this.showToast('No hay entidades digitalizadas ni plano para exportar.', 'warning');
+      return;
+    }
 
-      this.showToast(`Archivo "${fileName}" descargado`, 'success');
-      document.getElementById('modal-export-kml')?.classList.remove('active');
-    } catch (err) {
-      console.error('Error downloading KML:', err);
-      this.showToast('Error generando KML: ' + err.message, 'error');
+    const res = await window.kmlExporter.downloadDirect(
+      this.currentProject.name,
+      features,
+      this.currentPdfPlan
+    );
+
+    if (res.success) {
+      this.showToast(`Archivo "${res.fileName}" descargado con éxito`, 'success');
     }
   }
 

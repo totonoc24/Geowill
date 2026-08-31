@@ -147,6 +147,79 @@ class KmlExporter {
     return kml;
   }
 
+  /**
+   * Helper to escape XML characters for KML validity
+   */
+  _escapeXml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  /**
+   * Optimizes a photo DataURL to a compact thumbnail (~15-25KB) specifically for KML embed
+   * to ensure 100% compatibility with ArcGIS Pro KML To Layer and Google Earth.
+   */
+  async _optimizePhotoForKml(photoDataUrl, maxDim = 480, quality = 0.58) {
+    if (!photoDataUrl || typeof photoDataUrl !== 'string') return '';
+    if (photoDataUrl.length < 35000) return photoDataUrl; // Already compact
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            if (w > maxDim) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            }
+          } else {
+            if (h > maxDim) {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } catch (e) {
+          resolve(photoDataUrl);
+        }
+      };
+      img.onerror = () => resolve(photoDataUrl);
+      img.src = photoDataUrl;
+    });
+  }
+
+  /**
+   * Pre-processes features to optimize embedded photos for clean KML export
+   */
+  async prepareFeaturesForKml(features = []) {
+    const optimized = [];
+    for (const f of features) {
+      const featCopy = { ...f, properties: { ...(f.properties || {}) } };
+      if (featCopy.properties.photos && featCopy.properties.photos.length > 0) {
+        const optPhotos = [];
+        for (const p of featCopy.properties.photos) {
+          const optP = await this._optimizePhotoForKml(p);
+          optPhotos.push(optP);
+        }
+        featCopy.properties.photos = optPhotos;
+      }
+      optimized.push(featCopy);
+    }
+    return optimized;
+  }
+
   _generatePlacemarkPoint(f, index = 0) {
     const props = f.properties || {};
     const [lat, lng] = f.coordinates;
@@ -165,14 +238,13 @@ class KmlExporter {
           </IconStyle>
         </Style>
         <ExtendedData>
-          <SchemaData schemaUrl="#GeowillAttributes">
-            <SimpleData name="Nombre"><![CDATA[${props.name || 'Punto'}]]></SimpleData>
-            <SimpleData name="Categoria"><![CDATA[${props.category || 'General'}]]></SimpleData>
-            <SimpleData name="Descripcion"><![CDATA[${props.description || ''}]]></SimpleData>
-            <SimpleData name="Latitud">${lat.toFixed(7)}</SimpleData>
-            <SimpleData name="Longitud">${lng.toFixed(7)}</SimpleData>
-            <SimpleData name="Fecha">${new Date(f.createdAt || Date.now()).toISOString()}</SimpleData>
-          </SchemaData>
+          <Data name="Nombre"><value>${this._escapeXml(props.name || 'Punto')}</value></Data>
+          <Data name="Categoria"><value>${this._escapeXml(props.category || 'General')}</value></Data>
+          <Data name="Descripcion"><value>${this._escapeXml(props.description || '')}</value></Data>
+          <Data name="Latitud"><value>${lat.toFixed(7)}</value></Data>
+          <Data name="Longitud"><value>${lng.toFixed(7)}</value></Data>
+          <Data name="Fotos"><value>${(props.photos || []).length}</value></Data>
+          <Data name="Fecha"><value>${new Date(f.createdAt || Date.now()).toISOString()}</value></Data>
         </ExtendedData>
         <Point>
           <altitudeMode>clampToGround</altitudeMode>
@@ -198,13 +270,12 @@ class KmlExporter {
           </LineStyle>
         </Style>
         <ExtendedData>
-          <SchemaData schemaUrl="#GeowillAttributes">
-            <SimpleData name="Nombre"><![CDATA[${props.name || 'Línea'}]]></SimpleData>
-            <SimpleData name="Categoria"><![CDATA[${props.category || 'General'}]]></SimpleData>
-            <SimpleData name="Descripcion"><![CDATA[${props.description || ''}]]></SimpleData>
-            <SimpleData name="Longitud_m">${(props.length || 0).toFixed(2)}</SimpleData>
-            <SimpleData name="Fecha">${new Date(f.createdAt || Date.now()).toISOString()}</SimpleData>
-          </SchemaData>
+          <Data name="Nombre"><value>${this._escapeXml(props.name || 'Línea')}</value></Data>
+          <Data name="Categoria"><value>${this._escapeXml(props.category || 'General')}</value></Data>
+          <Data name="Descripcion"><value>${this._escapeXml(props.description || '')}</value></Data>
+          <Data name="Longitud_m"><value>${(props.length || 0).toFixed(2)}</value></Data>
+          <Data name="Fotos"><value>${(props.photos || []).length}</value></Data>
+          <Data name="Fecha"><value>${new Date(f.createdAt || Date.now()).toISOString()}</value></Data>
         </ExtendedData>
         <LineString>
           <tessellate>1</tessellate>
@@ -240,15 +311,14 @@ class KmlExporter {
           </PolyStyle>
         </Style>
         <ExtendedData>
-          <SchemaData schemaUrl="#GeowillAttributes">
-            <SimpleData name="Nombre"><![CDATA[${props.name || 'Polígono'}]]></SimpleData>
-            <SimpleData name="Categoria"><![CDATA[${props.category || 'General'}]]></SimpleData>
-            <SimpleData name="Descripcion"><![CDATA[${props.description || ''}]]></SimpleData>
-            <SimpleData name="Area_m2">${(props.area || 0).toFixed(2)}</SimpleData>
-            <SimpleData name="Area_ha">${((props.area || 0) / 10000).toFixed(3)}</SimpleData>
-            <SimpleData name="Perimetro_m">${(props.perimeter || 0).toFixed(2)}</SimpleData>
-            <SimpleData name="Fecha">${new Date(f.createdAt || Date.now()).toISOString()}</SimpleData>
-          </SchemaData>
+          <Data name="Nombre"><value>${this._escapeXml(props.name || 'Polígono')}</value></Data>
+          <Data name="Categoria"><value>${this._escapeXml(props.category || 'General')}</value></Data>
+          <Data name="Descripcion"><value>${this._escapeXml(props.description || '')}</value></Data>
+          <Data name="Area_m2"><value>${(props.area || 0).toFixed(2)}</value></Data>
+          <Data name="Area_ha"><value>${((props.area || 0) / 10000).toFixed(3)}</value></Data>
+          <Data name="Perimetro_m"><value>${(props.perimeter || 0).toFixed(2)}</value></Data>
+          <Data name="Fotos"><value>${(props.photos || []).length}</value></Data>
+          <Data name="Fecha"><value>${new Date(f.createdAt || Date.now()).toISOString()}</value></Data>
         </ExtendedData>
         <Polygon>
           <tessellate>1</tessellate>
@@ -286,16 +356,35 @@ class KmlExporter {
   }
 
   _buildDescriptionHtml(props, coords, typeStr) {
-    let html = `<div style="font-family:sans-serif; min-width:220px; padding:4px;">
-      <h3 style="color:#0284c7; margin:0 0 6px 0;">${props.name || typeStr}</h3>
+    let photosHtml = '';
+    if (props.photos && props.photos.length > 0) {
+      photosHtml = `
+      <div style="margin-top:10px; padding-top:8px; border-top:1px solid #cbd5e1;">
+        <div style="font-size:12px; font-weight:bold; color:#0f172a; margin-bottom:6px;">📸 Fotografías de Campo (${props.photos.length}):</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">`;
+      props.photos.forEach((photoDataUrl, idx) => {
+        photosHtml += `
+          <div style="border-radius:6px; overflow:hidden; border:1px solid #94a3b8; background:#0f172a; margin-bottom:8px;">
+            <img src="${photoDataUrl}" style="width:100%; max-width:100%; height:auto; max-height:280px; object-fit:contain; display:block; margin:0 auto;" alt="Foto ${idx + 1}" />
+            <div style="font-size:11px; color:#475569; background:#f8fafc; padding:4px 8px; border-top:1px solid #e2e8f0;">
+              <b>Foto #${idx + 1}</b> • Registro Topográfico Geowill
+            </div>
+          </div>`;
+      });
+      photosHtml += `</div></div>`;
+    }
+
+    let html = `<div style="font-family:sans-serif; min-width:240px; max-width:340px; padding:4px; color:#1e293b;">
+      <h3 style="color:#0284c7; margin:0 0 6px 0; font-size:16px;">${props.name || typeStr}</h3>
       <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:6px;">
-        <tr><td style="color:#64748b; padding:2px 0;"><b>Categoría:</b></td><td>${props.category || 'General'}</td></tr>
+        <tr><td style="color:#64748b; padding:2px 0; width:95px;"><b>Categoría:</b></td><td>${props.category || 'General'}</td></tr>
         ${coords ? `<tr><td style="color:#64748b; padding:2px 0;"><b>Coordenadas:</b></td><td>${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}</td></tr>` : ''}
         ${props.length ? `<tr><td style="color:#64748b; padding:2px 0;"><b>Longitud:</b></td><td>${props.length > 1000 ? (props.length/1000).toFixed(3) + ' km' : props.length.toFixed(1) + ' m'}</td></tr>` : ''}
         ${props.area ? `<tr><td style="color:#64748b; padding:2px 0;"><b>Área:</b></td><td>${(props.area/10000).toFixed(2)} ha (${props.area.toFixed(1)} m²)</td></tr>` : ''}
-        ${props.photos && props.photos.length > 0 ? `<tr><td style="color:#64748b; padding:2px 0;"><b>Fotografías:</b></td><td>📸 ${props.photos.length} foto(s) de campo</td></tr>` : ''}
+        ${props.photos && props.photos.length > 0 ? `<tr><td style="color:#64748b; padding:2px 0;"><b>Fotografías:</b></td><td>📸 ${props.photos.length} foto(s) incrustada(s)</td></tr>` : ''}
       </table>
-      ${props.description ? `<p style="font-size:12px; margin:4px 0; background:#f1f5f9; padding:6px; border-radius:4px; color:#1e293b;">${props.description}</p>` : ''}
+      ${props.description ? `<p style="font-size:12px; margin:6px 0; background:#f1f5f9; padding:8px; border-radius:6px; color:#0f172a; border-left:3px solid #0284c7;">${props.description}</p>` : ''}
+      ${photosHtml}
     </div>`;
     return html;
   }
@@ -304,7 +393,8 @@ class KmlExporter {
    * Shares KML directly to WhatsApp, Bluetooth, Telegram, Drive via AndroidBridge or WebShare API
    */
   async shareViaNativeOrWebShare(projectName, features, pdfPlan = null) {
-    const kmlContent = this.generateKmlString(projectName, features, pdfPlan);
+    const readyFeatures = await this.prepareFeaturesForKml(features);
+    const kmlContent = this.generateKmlString(projectName, readyFeatures, pdfPlan);
     const { fileName, docTitle, dateDisplay } = this.getFormattedExportName(projectName);
 
     // 1. Prioritize Android Native Bridge (100% reliable for WhatsApp & Bluetooth on Android APK)
@@ -344,8 +434,9 @@ class KmlExporter {
   /**
    * Direct download of KML file to device storage
    */
-  downloadDirect(projectName, features, pdfPlan = null) {
-    const kmlContent = this.generateKmlString(projectName, features, pdfPlan);
+  async downloadDirect(projectName, features, pdfPlan = null) {
+    const readyFeatures = await this.prepareFeaturesForKml(features);
+    const kmlContent = this.generateKmlString(projectName, readyFeatures, pdfPlan);
     const { fileName, docTitle } = this.getFormattedExportName(projectName);
     const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml;charset=utf-8' });
 
