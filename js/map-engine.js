@@ -114,6 +114,12 @@ class MapEngine {
     this.baseLayers = {};
     this.currentPdfLayer = null;
     this.pdfOpacity = 0.85;
+
+    // Map Heading-Up / Auto-Rotation state
+    this.isHeadingUp = false;
+    this.currentHeading = 0;
+    this.accumulatedAngle = 0; // Continuous angle for shortest-path interpolation
+    this.lastRawHeading = 0;
   }
 
   init(containerId = 'map') {
@@ -251,6 +257,133 @@ class MapEngine {
       latElem.textContent = latlng.lat.toFixed(6);
       lngElem.textContent = latlng.lng.toFixed(6);
     }
+  }
+
+  /* ==========================================================================
+     Map Heading-Up (Auto-Rotate Forward) & Compass Methods
+     ========================================================================== */
+
+  /**
+   * Toggles between Heading-Up (Auto-rotate forward) and North-Up (0° fixed)
+   */
+  toggleHeadingUpMode() {
+    return this.setHeadingUpMode(!this.isHeadingUp);
+  }
+
+  /**
+   * Sets the heading up mode explicitly
+   */
+  setHeadingUpMode(enabled) {
+    this.isHeadingUp = !!enabled;
+    const mapEl = document.getElementById('map');
+    const compassWidget = document.getElementById('compass-north-widget');
+    const sideBtn = document.getElementById('btn-map-heading-lock');
+
+    if (this.isHeadingUp) {
+      if (mapEl) mapEl.classList.add('auto-rotating');
+      if (compassWidget) compassWidget.classList.add('heading-up-active');
+      if (sideBtn) sideBtn.classList.add('active');
+
+      if (this.map) {
+        this.map.invalidateSize();
+      }
+
+      // If we have a current GPS heading, apply it immediately
+      const initialHeading = window.gpsTracker?.heading || 0;
+      this.setHeadingRotation(initialHeading);
+
+      // Center map on user if available
+      if (window.gpsTracker?.currentPosition) {
+        window.gpsTracker.centerOnUser();
+      }
+    } else {
+      this.resetNorthUp();
+    }
+
+    return this.isHeadingUp;
+  }
+
+  /**
+   * Resets the map rotation smoothly to North-Up (0°)
+   */
+  resetNorthUp() {
+    this.isHeadingUp = false;
+    const mapEl = document.getElementById('map');
+    const compassWidget = document.getElementById('compass-north-widget');
+    const sideBtn = document.getElementById('btn-map-heading-lock');
+
+    if (compassWidget) compassWidget.classList.remove('heading-up-active');
+    if (sideBtn) sideBtn.classList.remove('active');
+
+    // Smoothly animate back to 0°
+    this.accumulatedAngle = 0;
+    if (mapEl) {
+      mapEl.style.transform = 'rotate(0deg)';
+    }
+
+    this.updateCompassUI(0);
+
+    setTimeout(() => {
+      if (!this.isHeadingUp && mapEl) {
+        mapEl.classList.remove('auto-rotating');
+        if (this.map) this.map.invalidateSize();
+      }
+    }, 280);
+  }
+
+  /**
+   * Applies shortest-path angular rotation to the map and updates North needle
+   * @param {number} headingDeg - Geographic heading (0° = North, 90° = East, etc.)
+   */
+  setHeadingRotation(headingDeg) {
+    if (headingDeg === null || headingDeg === undefined || isNaN(headingDeg)) return;
+    this.currentHeading = (headingDeg + 360) % 360;
+
+    // Always update the Compass UI so the user always sees where North is
+    this.updateCompassUI(this.currentHeading);
+
+    if (!this.isHeadingUp) return;
+
+    const mapEl = document.getElementById('map');
+    if (!mapEl) return;
+
+    // Calculate shortest angular difference from last heading
+    let diff = ((this.currentHeading - this.lastRawHeading + 180) % 360) - 180;
+    if (diff < -180) diff += 360;
+
+    this.lastRawHeading = this.currentHeading;
+    // Map rotates in reverse (-heading) so that heading direction points straight UP (forward)
+    this.accumulatedAngle -= diff;
+
+    mapEl.style.transform = `rotate(${this.accumulatedAngle}deg)`;
+  }
+
+  /**
+   * Updates the North Compass needle and heading readout
+   * @param {number} headingDeg - Current user heading in degrees
+   */
+  updateCompassUI(headingDeg) {
+    const pivot = document.getElementById('compass-needle-pivot');
+    const badge = document.getElementById('compass-heading-deg');
+
+    // In heading-up mode, the map is rotated by this.accumulatedAngle.
+    // The North needle points toward physical North (-heading relative to screen).
+    // In north-up mode, geographic North on screen is always UP (0°), but the needle shows orientation.
+    const needleAngle = this.isHeadingUp ? this.accumulatedAngle : -headingDeg;
+    if (pivot) {
+      pivot.style.transform = `rotate(${needleAngle}deg)`;
+    }
+
+    if (badge) {
+      const cardinal = this._getCardinalDirection(headingDeg);
+      badge.textContent = `${Math.round(headingDeg)}° ${cardinal}`;
+    }
+  }
+
+  _getCardinalDirection(deg) {
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(((deg % 360) / 22.5)) % 16;
+    return directions[index];
   }
 }
 

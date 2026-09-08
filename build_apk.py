@@ -25,13 +25,13 @@ if not os.path.exists(JAVA_EXE):
     JAVA_EXE = 'java'
 
 APP_NAME = 'Geowill'
-OUTPUT_APK_NAME = 'Geowill_Android_v1.0.apk'
+OUTPUT_APK_NAME = 'Geowill_Android_v2.0.apk'
 
 def setup_directories():
     print('[1/6] Preparando estructura de directorios...')
     if os.path.exists(BUILD_DIR):
         shutil.rmtree(BUILD_DIR)
-    os.makedirs(os.path.join(BUILD_DIR, 'src', 'com', 'geowill', 'gis'), exist_ok=True)
+    os.makedirs(os.path.join(BUILD_DIR, 'src', 'com', 'geowill'), exist_ok=True)
     os.makedirs(os.path.join(BUILD_DIR, 'res', 'values'), exist_ok=True)
     os.makedirs(os.path.join(BUILD_DIR, 'res', 'drawable'), exist_ok=True)
     os.makedirs(os.path.join(BUILD_DIR, 'res', 'xml'), exist_ok=True)
@@ -51,24 +51,20 @@ def create_manifest_and_resources():
     # AndroidManifest.xml
     manifest_content = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.geowill.gis"
-    android:versionCode="1"
-    android:versionName="1.0.0">
+    package="com.geowill"
+    android:versionCode="2"
+    android:versionName="2.0.0">
 
-    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="33" />
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="35" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.BLUETOOTH" />
 
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -86,10 +82,54 @@ def create_manifest_and_resources():
             android:name=".MainActivity"
             android:label="@string/app_name"
             android:configChanges="orientation|screenSize|keyboardHidden"
+            android:launchMode="singleTop"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- 1. Open KML/KMZ from WhatsApp, Telegram, Gmail, Downloads via MIME Type -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/vnd.google-earth.kml+xml" />
+                <data android:mimeType="application/vnd.google-earth.kmz" />
+                <data android:mimeType="application/kml" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="text/xml" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- 2. Open KML/KMZ from File Explorers and WhatsApp via File Extension / Path -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.kml" />
+                <data android:pathPattern=".*\\.KML" />
+                <data android:pathPattern=".*\\.kmz" />
+                <data android:pathPattern=".*\\.KMZ" />
+            </intent-filter>
+
+            <!-- 3. Share KML/KMZ directly to Geowill ("Compartir con...") -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.google-earth.kml+xml" />
+                <data android:mimeType="application/vnd.google-earth.kmz" />
+                <data android:mimeType="application/kml" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="text/xml" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
 
@@ -100,7 +140,7 @@ def create_manifest_and_resources():
 
         <provider
             android:name=".GeowillFileProvider"
-            android:authorities="com.geowill.gis.fileprovider"
+            android:authorities="com.geowill.fileprovider"
             android:exported="true"
             android:grantUriPermissions="true" />
     </application>
@@ -133,7 +173,7 @@ def create_java_source():
     print('[3/6] Creando código Java nativo (Geowill WebView, FileProvider, Cámara y Compartir KML)...')
     
     # 1. GeowillFileProvider.java
-    provider_content = """package com.geowill.gis;
+    provider_content = """package com.geowill;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;
@@ -146,7 +186,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 
 public class GeowillFileProvider extends ContentProvider {
-    public static final String AUTHORITY = "com.geowill.gis.fileprovider";
+    public static final String AUTHORITY = "com.geowill.fileprovider";
 
     @Override
     public boolean onCreate() {
@@ -209,12 +249,12 @@ public class GeowillFileProvider extends ContentProvider {
     public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) { return 0; }
 }
 """
-    provider_path = os.path.join(BUILD_DIR, 'src', 'com', 'geowill', 'gis', 'GeowillFileProvider.java')
+    provider_path = os.path.join(BUILD_DIR, 'src', 'com', 'geowill', 'GeowillFileProvider.java')
     with open(provider_path, 'w', encoding='utf-8') as f:
         f.write(provider_content)
 
     # 2. GeowillTrackingService.java (Background GPS & WakeLock Foreground Service)
-    service_content = r"""package com.geowill.gis;
+    service_content = r"""package com.geowill;
 
 import android.app.Service;
 import android.app.Notification;
@@ -476,12 +516,12 @@ public class GeowillTrackingService extends Service implements LocationListener 
     }
 }
 """
-    service_path = os.path.join(BUILD_DIR, 'src', 'com', 'geowill', 'gis', 'GeowillTrackingService.java')
+    service_path = os.path.join(BUILD_DIR, 'src', 'com', 'geowill', 'GeowillTrackingService.java')
     with open(service_path, 'w', encoding='utf-8') as f:
         f.write(service_content)
 
     # 3. MainActivity.java
-    java_content = r"""package com.geowill.gis;
+    java_content = r"""package com.geowill;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -502,6 +542,8 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.media.ExifInterface;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
 import android.Manifest;
 import android.os.Build;
 import android.os.Environment;
@@ -515,8 +557,11 @@ import android.widget.Toast;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipEntry;
 
 public class MainActivity extends Activity {
     public static MainActivity instance;
@@ -524,6 +569,9 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> uploadMessageAboveL;
     private String cameraPhotoPath;
     private Uri cameraContentUri;
+    private String pendingKmlContent = null;
+    private String pendingKmlName = null;
+    private boolean isAppLoaded = false;
     private final static int FILE_CHOOSER_RESULT_CODE = 10001;
     private final static int PERMISSION_REQUEST_CODE = 20001;
     private final static int NATIVE_CAMERA_REQUEST_CODE = 20002;
@@ -660,8 +708,6 @@ public class MainActivity extends Activity {
             perms.add(Manifest.permission.ACCESS_FINE_LOCATION);
             perms.add(Manifest.permission.ACCESS_COARSE_LOCATION);
             perms.add(Manifest.permission.CAMERA);
-            perms.add(Manifest.permission.READ_EXTERNAL_STORAGE);
-            perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             if (Build.VERSION.SDK_INT >= 33) {
                 perms.add("android.permission.POST_NOTIFICATIONS");
             }
@@ -670,6 +716,114 @@ public class MainActivity extends Activity {
 
         // Load local asset app
         webView.loadUrl("file:///android_asset/index.html");
+
+        // Process any KML opened directly (e.g. from WhatsApp, Telegram, Gmail, File Manager)
+        handleIncomingKmlIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingKmlIntent(intent);
+    }
+
+    private void handleIncomingKmlIntent(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        if (!Intent.ACTION_VIEW.equals(action) && !Intent.ACTION_SEND.equals(action)) {
+            return;
+        }
+
+        Uri fileUri = null;
+        if (Intent.ACTION_VIEW.equals(action)) {
+            fileUri = intent.getData();
+        } else if (Intent.ACTION_SEND.equals(action)) {
+            fileUri = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
+        }
+
+        if (fileUri == null) return;
+
+        try {
+            String fileName = "Archivo.kml";
+            try {
+                Cursor cursor = getContentResolver().query(fileUri, null, null, null, null);
+                if (cursor != null) {
+                    if (cursor.moveToFirst()) {
+                        int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                        if (nameIndex >= 0) {
+                            fileName = cursor.getString(nameIndex);
+                        }
+                    }
+                    cursor.close();
+                }
+            } catch (Exception ignored) {}
+
+            InputStream is = getContentResolver().openInputStream(fileUri);
+            if (is != null) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = is.read(buffer)) != -1) {
+                    baos.write(buffer, 0, read);
+                }
+                is.close();
+                byte[] bytes = baos.toByteArray();
+
+                String kmlText = null;
+                // Handle KMZ zip stream or plain KML text
+                if (fileName.toLowerCase().endsWith(".kmz") || (bytes.length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B)) {
+                    ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(bytes));
+                    ZipEntry entry;
+                    while ((entry = zis.getNextEntry()) != null) {
+                        if (entry.getName().toLowerCase().endsWith(".kml")) {
+                            ByteArrayOutputStream kmlBaos = new ByteArrayOutputStream();
+                            byte[] kmlBuf = new byte[4096];
+                            int kmlRead;
+                            while ((kmlRead = zis.read(kmlBuf)) != -1) {
+                                kmlBaos.write(kmlBuf, 0, kmlRead);
+                            }
+                            kmlText = new String(kmlBaos.toByteArray(), "UTF-8");
+                            break;
+                        }
+                    }
+                    zis.close();
+                } else {
+                    kmlText = new String(bytes, "UTF-8");
+                }
+
+                if (kmlText != null && !kmlText.trim().isEmpty()) {
+                    dispatchKmlToWebView(kmlText, fileName);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Error al abrir archivo KML: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void dispatchKmlToWebView(final String kmlText, final String fileName) {
+        pendingKmlContent = kmlText;
+        pendingKmlName = fileName;
+
+        if (isAppLoaded && webView != null) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        org.json.JSONObject payload = new org.json.JSONObject();
+                        payload.put("kml", kmlText);
+                        payload.put("name", fileName != null ? fileName : "Archivo.kml");
+                        String js = "if (window.app && window.app.importExternalKmlText) { window.app.importExternalKmlText(" + payload.toString() + ".kml, " + payload.toString() + ".name); }";
+                        webView.evaluateJavascript(js, null);
+                        pendingKmlContent = null;
+                        pendingKmlName = null;
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
     }
 
     @Override
@@ -978,7 +1132,7 @@ public class MainActivity extends Activity {
                             validName += ".kml";
                         }
 
-                        // Write to external cache dir (preferred for sharing) and internal cache fallback
+                        // 1. Write to external cache dir (preferred for sharing) and internal cache fallback
                         File dir = mContext.getExternalCacheDir();
                         if (dir == null) dir = mContext.getCacheDir();
                         if (!dir.exists()) dir.mkdirs();
@@ -989,7 +1143,22 @@ public class MainActivity extends Activity {
                         fos.flush();
                         fos.close();
 
-                        // Also write copy to internal cache to ensure FileProvider can find it either way
+                        // 2. Also save direct copy to public Downloads folder so the user can easily find it in "Descargas / Mis Archivos"
+                        try {
+                            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                            if (downloadsDir != null) {
+                                if (!downloadsDir.exists()) downloadsDir.mkdirs();
+                                File dlFile = new File(downloadsDir, validName);
+                                FileOutputStream dlFos = new FileOutputStream(dlFile);
+                                dlFos.write(kmlText.getBytes("UTF-8"));
+                                dlFos.flush();
+                                dlFos.close();
+                                // Notify Android MediaScanner so file appears instantly in file managers
+                                sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(dlFile)));
+                            }
+                        } catch (Exception ignored) {}
+
+                        // 3. Also write copy to internal cache to ensure FileProvider can find it either way
                         try {
                             File intDir = mContext.getCacheDir();
                             if (intDir != null && !intDir.equals(dir)) {
@@ -1029,13 +1198,36 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public String getPendingImportKml() {
+            if (pendingKmlContent != null) {
+                try {
+                    org.json.JSONObject obj = new org.json.JSONObject();
+                    obj.put("kml", pendingKmlContent);
+                    obj.put("name", pendingKmlName != null ? pendingKmlName : "Archivo.kml");
+                    pendingKmlContent = null;
+                    pendingKmlName = null;
+                    return obj.toString();
+                } catch (Exception e) {}
+            }
+            return "";
+        }
+
+        @JavascriptInterface
+        public void notifyAppLoaded() {
+            isAppLoaded = true;
+            if (pendingKmlContent != null) {
+                dispatchKmlToWebView(pendingKmlContent, pendingKmlName);
+            }
+        }
+
+        @JavascriptInterface
         public void showToast(String message) {
             Toast.makeText(mContext, message, Toast.LENGTH_SHORT).show();
         }
     }
 }
 """
-    java_path = os.path.join(BUILD_DIR, 'src', 'com', 'geowill', 'gis', 'MainActivity.java')
+    java_path = os.path.join(BUILD_DIR, 'src', 'com', 'geowill', 'MainActivity.java')
     with open(java_path, 'w', encoding='utf-8') as f:
         f.write(java_content)
 
@@ -1108,7 +1300,7 @@ def compile_and_package():
         *java_files
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
-    if res.returncode != 0 and not os.path.exists(os.path.join(classes_dir, 'com', 'geowill', 'gis', 'MainActivity.class')):
+    if res.returncode != 0 and not os.path.exists(os.path.join(classes_dir, 'com', 'geowill', 'MainActivity.class')):
         print('Error ecj:', res.stderr)
         raise RuntimeError(res.stderr)
 

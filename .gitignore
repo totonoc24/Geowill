@@ -1,8 +1,17 @@
 # Build Artifacts and Binary Directories
 tools/
 build_android/
+build_android_aab/
 *.apk
+*.aab
 *.idsig
+*.keystore
+temp_bundle.apk
+*.mp4
+
+# Python cache
+__pycache__/
+*.pyc
 
 # Local SSL Certificates
 cert.pem

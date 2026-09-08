@@ -44,8 +44,12 @@ class GeoPlanApp {
       if (window.navStakeout && window.navStakeout.isActive) {
         window.navStakeout.updateUserPosition(pos);
       }
+      if (pos.heading !== undefined && pos.heading !== null) {
+        window.mapEngine.setHeadingRotation(pos.heading);
+      }
     };
     window.gpsTracker.onHeadingUpdate = (heading) => {
+      window.mapEngine.setHeadingRotation(heading);
       if (window.navStakeout && window.navStakeout.isActive) {
         window.navStakeout.updateCompassHeading(heading);
       }
@@ -63,6 +67,26 @@ class GeoPlanApp {
 
     // 6. Register Service Worker for offline PWA
     this._registerServiceWorker();
+
+    // 7. Check for incoming KML opened directly from WhatsApp, Telegram, Gmail, File Manager
+    if (window.AndroidNative && typeof window.AndroidNative.notifyAppLoaded === 'function') {
+      window.AndroidNative.notifyAppLoaded();
+    }
+    if (window.AndroidNative && typeof window.AndroidNative.getPendingImportKml === 'function') {
+      try {
+        const rawPending = window.AndroidNative.getPendingImportKml();
+        if (rawPending && rawPending.trim().length > 0) {
+          const parsed = JSON.parse(rawPending);
+          if (parsed.kml) {
+            setTimeout(() => {
+              this.importExternalKmlText(parsed.kml, parsed.name || 'Archivo.kml');
+            }, 800);
+          }
+        }
+      } catch (e) {
+        console.warn('Error checking pending KML:', e);
+      }
+    }
 
     this.showToast('Geowill iniciado correctamente', 'success');
   }
@@ -136,6 +160,20 @@ class GeoPlanApp {
       e.currentTarget.classList.toggle('active', following);
       this.showToast(following ? 'Modo seguimiento activado' : 'Seguimiento desactivado', 'info');
     });
+
+    // Auto-Rotate / Heading-Up & Compass widget toggle
+    const toggleHeadingMode = () => {
+      const isHeadingUp = window.mapEngine.toggleHeadingUpMode();
+      this.showToast(
+        isHeadingUp 
+          ? '🧭 Orientación: Rumbo Adelante (Giro Automático)' 
+          : '🧭 Orientación: Norte Arriba (Fijo)',
+        'info'
+      );
+    };
+
+    document.getElementById('compass-north-widget')?.addEventListener('click', toggleHeadingMode);
+    document.getElementById('btn-map-heading-lock')?.addEventListener('click', toggleHeadingMode);
 
     document.getElementById('btn-quick-gps-point')?.addEventListener('click', () => {
       window.vectorEditor.addPointAtCurrentGps();
@@ -453,6 +491,7 @@ class GeoPlanApp {
       // Start recording
       window.gpsTracker.startTrackRecording();
       if (hud) hud.style.display = 'flex';
+      document.body.classList.add('track-recording-active');
       document.getElementById('hud-crs-container')?.classList.add('track-active');
       if (pauseBtn) {
         pauseBtn.innerHTML = '⏸️ Pausa';
@@ -463,7 +502,7 @@ class GeoPlanApp {
         pulse.style.boxShadow = '0 0 8px #f43f5e';
       }
       if (statusLbl) {
-        statusLbl.textContent = 'GRABANDO:';
+        statusLbl.textContent = 'REC:';
         statusLbl.style.color = '#f43f5e';
       }
       if (btn) {
@@ -477,6 +516,7 @@ class GeoPlanApp {
       // Stop recording
       const result = window.gpsTracker.stopTrackRecording();
       if (hud) hud.style.display = 'none';
+      document.body.classList.remove('track-recording-active');
       document.getElementById('hud-crs-container')?.classList.remove('track-active');
       if (btn) {
         btn.style.background = 'rgba(244, 63, 94, 0.2)';
@@ -651,6 +691,9 @@ class GeoPlanApp {
     document.getElementById('feature-desc-input').value = feature.properties?.description || '';
     document.getElementById('feature-color-input').value = feature.properties?.color || '#06b6d4';
 
+    // Render Rich Coordinates Card for Point / Line / Polygon
+    this._renderFeatureCoordsCard(feature);
+
     // Metrics display
     const metaBox = document.getElementById('feature-metrics-info');
     if (metaBox) {
@@ -667,6 +710,202 @@ class GeoPlanApp {
 
     this._renderPhotoThumbnails();
     document.getElementById('modal-feature-backdrop').classList.add('active');
+  }
+
+  _renderFeatureCoordsCard(feature) {
+    const coordsCard = document.getElementById('feature-coords-card');
+    if (!coordsCard) return;
+
+    if (!feature || !feature.coordinates) {
+      coordsCard.style.display = 'none';
+      return;
+    }
+
+    if (feature.type === 'Point') {
+      let lat = null, lng = null;
+      if (Array.isArray(feature.coordinates)) {
+        lat = parseFloat(feature.coordinates[0]);
+        lng = parseFloat(feature.coordinates[1]);
+      } else if (typeof feature.coordinates === 'object') {
+        lat = parseFloat(feature.coordinates.lat);
+        lng = parseFloat(feature.coordinates.lng);
+      }
+
+      if (lat === null || isNaN(lat) || lng === null || isNaN(lng)) {
+        coordsCard.style.display = 'none';
+        return;
+      }
+
+      // Default or saved coordinate system preference
+      let activeSystem = localStorage.getItem('geowill_preferred_coords_sys') || 'wgs84';
+
+      // Calculations
+      const latStr = lat.toFixed(7);
+      const lngStr = lng.toFixed(7);
+      const dmsLat = window.georefEngine ? window.georefEngine.formatDecimalToDMS(lat, true) : '';
+      const dmsLng = window.georefEngine ? window.georefEngine.formatDecimalToDMS(lng, false) : '';
+      const magna9377 = window.georefEngine ? window.georefEngine.wgs84ToEpsg9377(lat, lng) : null;
+      const magna3116 = window.georefEngine ? window.georefEngine.wgs84ToEpsg3116(lat, lng) : null;
+
+      const currentGps = window.gpsTracker?.currentPosition;
+      const alt = feature.properties?.altitude !== undefined ? feature.properties.altitude : currentGps?.altitude;
+      const acc = feature.properties?.accuracy !== undefined ? feature.properties.accuracy : currentGps?.accuracy;
+      const altText = (alt !== undefined && alt !== null && alt !== 0) ? `${parseFloat(alt).toFixed(1)} m` : '--';
+      const accText = (acc !== undefined && acc !== null && acc !== 0) ? `±${parseFloat(acc).toFixed(1)} m` : '--';
+
+      const renderCardContent = (sys) => {
+        let displayHtml = '';
+        let copyText = '';
+
+        if (sys === 'wgs84') {
+          displayHtml = `
+            <div class="coords-val-box">
+              <span class="coords-val-label">Latitud (WGS84)</span>
+              <span class="coords-val-text highlight">${latStr}°</span>
+            </div>
+            <div class="coords-val-box">
+              <span class="coords-val-label">Longitud (WGS84)</span>
+              <span class="coords-val-text highlight">${lngStr}°</span>
+            </div>
+          `;
+          copyText = `Lat: ${latStr}, Lon: ${lngStr}`;
+        } else if (sys === 'dms') {
+          displayHtml = `
+            <div class="coords-val-box coords-item-full">
+              <span class="coords-val-label">Grados, Minutos y Segundos (DMS)</span>
+              <span class="coords-val-text highlight">${dmsLat}, ${dmsLng}</span>
+            </div>
+          `;
+          copyText = `${dmsLat} ${dmsLng}`;
+        } else if (sys === 'epsg9377') {
+          const n = magna9377 ? magna9377.norte.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m' : '--';
+          const e = magna9377 ? magna9377.este.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m' : '--';
+          displayHtml = `
+            <div class="coords-val-box">
+              <span class="coords-val-label">Norte (N) - EPSG:9377</span>
+              <span class="coords-val-text highlight">${n}</span>
+            </div>
+            <div class="coords-val-box">
+              <span class="coords-val-label">Este (E) - EPSG:9377</span>
+              <span class="coords-val-text highlight">${e}</span>
+            </div>
+          `;
+          copyText = `EPSG:9377 -> N: ${n}, E: ${e}`;
+        } else if (sys === 'epsg3116') {
+          const n = magna3116 ? magna3116.norte.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m' : '--';
+          const e = magna3116 ? magna3116.este.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m' : '--';
+          displayHtml = `
+            <div class="coords-val-box">
+              <span class="coords-val-label">Norte (N) - EPSG:3116</span>
+              <span class="coords-val-text highlight">${n}</span>
+            </div>
+            <div class="coords-val-box">
+              <span class="coords-val-label">Este (E) - EPSG:3116</span>
+              <span class="coords-val-text highlight">${e}</span>
+            </div>
+          `;
+          copyText = `EPSG:3116 -> N: ${n}, E: ${e}`;
+        }
+
+        coordsCard.innerHTML = `
+          <div class="feature-coords-header">
+            <span class="feature-coords-title">
+              <span>📍</span> <span>Coordenadas</span>
+            </span>
+            <button type="button" class="btn-copy-coords" id="btn-copy-feature-coords" title="Copiar coordenadas">
+              <span>📋</span> <span>Copiar</span>
+            </button>
+          </div>
+
+          <div class="coords-system-pills" id="coords-system-selector">
+            <button type="button" class="coords-pill ${sys === 'wgs84' ? 'active' : ''}" data-sys="wgs84">WGS84</button>
+            <button type="button" class="coords-pill ${sys === 'dms' ? 'active' : ''}" data-sys="dms">DMS</button>
+            <button type="button" class="coords-pill ${sys === 'epsg9377' ? 'active' : ''}" data-sys="epsg9377">Magna 9377</button>
+            <button type="button" class="coords-pill ${sys === 'epsg3116' ? 'active' : ''}" data-sys="epsg3116">Magna 3116</button>
+          </div>
+
+          <div class="coords-display-single">
+            ${displayHtml}
+          </div>
+
+          <div class="coords-meta-row">
+            <span>Altitud: <b>${altText}</b></span>
+            <span>Precisión: <b>${accText}</b></span>
+          </div>
+        `;
+
+        // Bind system selector pills
+        document.querySelectorAll('#coords-system-selector .coords-pill').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chosen = btn.getAttribute('data-sys');
+            localStorage.setItem('geowill_preferred_coords_sys', chosen);
+            renderCardContent(chosen);
+          });
+        });
+
+        // Bind copy button
+        document.getElementById('btn-copy-feature-coords')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.copyToClipboard(copyText);
+        });
+      };
+
+      renderCardContent(activeSystem);
+      coordsCard.style.display = 'flex';
+    } else if (feature.type === 'LineString' || feature.type === 'Polygon') {
+      const coords = feature.coordinates || [];
+      const count = coords.length;
+      const startCoord = coords[0] ? (Array.isArray(coords[0]) ? `${coords[0][0].toFixed(6)}°, ${coords[0][1].toFixed(6)}°` : '') : '--';
+
+      coordsCard.innerHTML = `
+        <div class="feature-coords-header">
+          <span class="feature-coords-title">
+            <span>${feature.type === 'LineString' ? '📏' : '⬡'}</span> 
+            <span>${feature.type === 'LineString' ? 'Vértices de Línea' : 'Vértices de Polígono'}</span>
+          </span>
+          <span style="font-size: 9.5px; color: #38bdf8; font-family: monospace; font-weight: 700;">${count} vértices</span>
+        </div>
+        <div class="coords-display-single">
+          <div class="coords-val-box coords-item-full">
+            <span class="coords-val-label">Vértice Inicial (Latitud, Longitud)</span>
+            <span class="coords-val-text highlight">${startCoord}</span>
+          </div>
+        </div>
+      `;
+      coordsCard.style.display = 'flex';
+    } else {
+      coordsCard.style.display = 'none';
+    }
+  }
+
+  copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.showToast('📋 Coordenadas copiadas al portapapeles', 'success');
+      }).catch(() => {
+        this._fallbackCopyText(text);
+      });
+    } else {
+      this._fallbackCopyText(text);
+    }
+  }
+
+  _fallbackCopyText(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      this.showToast('📋 Coordenadas copiadas al portapapeles', 'success');
+    } catch (err) {
+      this.showToast('No se pudo copiar automáticamente', 'warning');
+    }
+    document.body.removeChild(textArea);
   }
 
   closeFeatureModal() {
@@ -1710,6 +1949,56 @@ class GeoPlanApp {
     } catch (err) {
       console.error('Error saving imported features:', err);
       this.showToast('Error guardando entidades KML: ' + err.message, 'error');
+    }
+  }
+
+  /**
+   * Automatically imports an external KML string received from WhatsApp / Android Intent
+   */
+  async importExternalKmlText(kmlText, sourceName = 'KML Externo') {
+    if (!kmlText || typeof kmlText !== 'string') return;
+    try {
+      this.showToast(`📥 Procesando KML recibido: ${sourceName}...`, 'info');
+
+      if (!this.currentProject) {
+        await this._loadOrCreateDefaultProject();
+      }
+
+      const result = window.kmlImporter.parseKmlString(kmlText, this.currentProject.id, sourceName);
+      if (!result.features || result.features.length === 0) {
+        this.showToast('El archivo KML recibido no contiene geometrías válidas.', 'warning');
+        return;
+      }
+
+      let count = 0;
+      const allBounds = [];
+
+      for (const feat of result.features) {
+        feat.projectId = this.currentProject.id;
+        await window.db.saveFeature(feat);
+        count++;
+
+        if (feat.type === 'Point' && Array.isArray(feat.coordinates)) {
+          allBounds.push(feat.coordinates);
+        } else if (Array.isArray(feat.coordinates) && Array.isArray(feat.coordinates[0])) {
+          feat.coordinates.forEach(c => {
+            if (Array.isArray(c)) allBounds.push(c);
+          });
+        }
+      }
+
+      await window.vectorEditor.loadProjectFeatures();
+
+      if (allBounds.length > 0 && window.mapEngine && window.mapEngine.map) {
+        try {
+          window.mapEngine.map.fitBounds(L.latLngBounds(allBounds), { padding: [40, 40], maxZoom: 18 });
+        } catch (e) {}
+      }
+
+      this.showToast(`✅ Se importaron ${count} entidades de "${sourceName}" en ${this.currentProject.name}`, 'success', 6000);
+    } catch (err) {
+      console.error('Error importing external KML:', err);
+      this.showToast('Error al importar KML: ' + err.message, 'error');
     }
   }
 

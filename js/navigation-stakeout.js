@@ -102,11 +102,12 @@ class NavigationStakeout {
       this.map.setView(this.targetLatLng, 18);
     }
 
-    // 4. Show HUD
+    // 4. Show HUD and apply active body class for non-overlapping layout
     const hud = document.getElementById('nav-guidance-hud');
     if (hud) {
       hud.style.display = 'flex';
     }
+    document.body.classList.add('nav-guidance-active');
 
     return true;
   }
@@ -135,6 +136,7 @@ class NavigationStakeout {
     if (hud) {
       hud.style.display = 'none';
     }
+    document.body.classList.remove('nav-guidance-active');
 
     if (this.onNavUpdate) {
       this.onNavUpdate(null);
