@@ -1376,7 +1376,293 @@ class GeoPlanApp {
       pdfDimensions: { width: 0, height: 0, scale: 2.0 },
       isSelectingOnMap: false
     };
+
+    this.pdfViewerState = {
+      scale: 1.0,
+      panX: 0,
+      panY: 0,
+      minScale: 0.01,
+      maxScale: 20.0,
+      isDragging: false,
+      hasMoved: false,
+      startX: 0,
+      startY: 0,
+      startPanX: 0,
+      startPanY: 0,
+      initialPinchDist: 0,
+      initialScale: 1.0,
+      pinchMidX: 0,
+      pinchMidY: 0,
+      lastTapTime: 0
+    };
+
     this._updateGcpTabsUI();
+    this.applyPdfViewerTransform();
+  }
+
+  applyPdfViewerTransform() {
+    const wrapper = document.getElementById('pdf-canvas-wrapper');
+    if (!wrapper || !this.pdfViewerState) return;
+    const s = this.pdfViewerState;
+    wrapper.style.transform = `translate(${s.panX}px, ${s.panY}px) scale(${s.scale})`;
+    
+    const badge = document.getElementById('pdf-zoom-badge');
+    if (badge) {
+      badge.textContent = `${Math.round(s.scale * 100)}%`;
+    }
+  }
+
+  fitPdfToScreen() {
+    const viewport = document.getElementById('pdf-canvas-viewport');
+    const canvas = document.getElementById('pdf-render-canvas');
+    if (!viewport || !canvas || canvas.width === 0 || canvas.height === 0) return;
+
+    const vRect = viewport.getBoundingClientRect();
+    const vWidth = vRect.width || viewport.clientWidth || 360;
+    const vHeight = vRect.height || viewport.clientHeight || 300;
+
+    if (vWidth <= 0 || vHeight <= 0) return;
+
+    const padding = 16;
+    const scaleX = (vWidth - padding * 2) / canvas.width;
+    const scaleY = (vHeight - padding * 2) / canvas.height;
+    const fitScale = Math.min(scaleX, scaleY);
+
+    if (!this.pdfViewerState) {
+      this._resetCalibrationState();
+    }
+    const s = this.pdfViewerState;
+    s.scale = Math.max(s.minScale, Math.min(s.maxScale, fitScale));
+    s.panX = Math.round((vWidth - canvas.width * s.scale) / 2);
+    s.panY = Math.round((vHeight - canvas.height * s.scale) / 2);
+
+    this.applyPdfViewerTransform();
+  }
+
+  adjustPdfZoom(deltaFactor, clientCenterX = null, clientCenterY = null) {
+    const viewport = document.getElementById('pdf-canvas-viewport');
+    const canvas = document.getElementById('pdf-render-canvas');
+    if (!viewport || !canvas || !this.pdfViewerState) return;
+
+    const s = this.pdfViewerState;
+    const vRect = viewport.getBoundingClientRect();
+    
+    // Default pivot point to center of viewport
+    const pivotX = (clientCenterX !== null ? clientCenterX : (vRect.left + vRect.width / 2)) - vRect.left;
+    const pivotY = (clientCenterY !== null ? clientCenterY : (vRect.top + vRect.height / 2)) - vRect.top;
+
+    const oldScale = s.scale;
+    let newScale = oldScale * deltaFactor;
+    newScale = Math.max(s.minScale, Math.min(s.maxScale, newScale));
+
+    if (Math.abs(newScale - oldScale) < 0.0001) return;
+
+    // Keep the pivot point stationary under the zoom
+    s.panX = pivotX - (pivotX - s.panX) * (newScale / oldScale);
+    s.panY = pivotY - (pivotY - s.panY) * (newScale / oldScale);
+    s.scale = newScale;
+
+    this.applyPdfViewerTransform();
+  }
+
+  resetPdfZoom() {
+    if (!this.pdfViewerState) return;
+    const s = this.pdfViewerState;
+    const viewport = document.getElementById('pdf-canvas-viewport');
+    const canvas = document.getElementById('pdf-render-canvas');
+    if (viewport && canvas) {
+      const vRect = viewport.getBoundingClientRect();
+      s.scale = 1.0;
+      s.panX = Math.round((vRect.width - canvas.width) / 2);
+      s.panY = Math.round((vRect.height - canvas.height) / 2);
+    } else {
+      s.scale = 1.0;
+      s.panX = 0;
+      s.panY = 0;
+    }
+    this.applyPdfViewerTransform();
+  }
+
+  initPdfViewerGestures() {
+    const viewport = document.getElementById('pdf-canvas-viewport');
+    const canvas = document.getElementById('pdf-render-canvas');
+    if (!viewport || !canvas || this._pdfViewerGesturesBound) return;
+    this._pdfViewerGesturesBound = true;
+
+    // Zoom Toolbar buttons
+    document.getElementById('btn-pdf-zoom-in')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.adjustPdfZoom(1.35);
+    });
+
+    document.getElementById('btn-pdf-zoom-out')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.adjustPdfZoom(0.74);
+    });
+
+    document.getElementById('btn-pdf-zoom-fit')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.fitPdfToScreen();
+    });
+
+    document.getElementById('btn-pdf-zoom-reset')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.resetPdfZoom();
+    });
+
+    const getDistance = (t1, t2) => {
+      const dx = t1.clientX - t2.clientX;
+      const dy = t1.clientY - t2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    // Touch events for mobile (pinch-to-zoom and drag pan)
+    viewport.addEventListener('touchstart', (e) => {
+      const s = this.pdfViewerState;
+      if (!s) return;
+
+      if (e.touches.length === 2) {
+        // Pinch zoom
+        s.initialPinchDist = getDistance(e.touches[0], e.touches[1]);
+        s.initialScale = s.scale;
+        s.pinchMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        s.pinchMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        s.isDragging = false;
+        s.hasMoved = true;
+      } else if (e.touches.length === 1) {
+        s.isDragging = true;
+        s.hasMoved = false;
+        s.startX = e.touches[0].clientX;
+        s.startY = e.touches[0].clientY;
+        s.startPanX = s.panX;
+        s.startPanY = s.panY;
+      }
+    }, { passive: false });
+
+    viewport.addEventListener('touchmove', (e) => {
+      const s = this.pdfViewerState;
+      if (!s) return;
+
+      if (e.touches.length === 2 && s.initialPinchDist > 0) {
+        e.preventDefault();
+        const currentDist = getDistance(e.touches[0], e.touches[1]);
+        const scaleFactor = currentDist / s.initialPinchDist;
+        const targetScale = Math.max(s.minScale, Math.min(s.maxScale, s.initialScale * scaleFactor));
+        const delta = targetScale / s.scale;
+        this.adjustPdfZoom(delta, s.pinchMidX, s.pinchMidY);
+        s.hasMoved = true;
+      } else if (e.touches.length === 1 && s.isDragging) {
+        const dx = e.touches[0].clientX - s.startX;
+        const dy = e.touches[0].clientY - s.startY;
+        if (Math.hypot(dx, dy) > 6) {
+          s.hasMoved = true;
+          e.preventDefault();
+          s.panX = s.startPanX + dx;
+          s.panY = s.startPanY + dy;
+          this.applyPdfViewerTransform();
+        }
+      }
+    }, { passive: false });
+
+    viewport.addEventListener('touchend', (e) => {
+      const s = this.pdfViewerState;
+      if (!s) return;
+
+      if (e.touches.length < 2) {
+        s.initialPinchDist = 0;
+      }
+
+      if (e.touches.length === 0) {
+        if (s.isDragging && !s.hasMoved && e.changedTouches && e.changedTouches.length > 0) {
+          // Tap detected! Check double-tap vs single tap
+          const now = Date.now();
+          const t = e.changedTouches[0];
+          if (now - s.lastTapTime < 300) {
+            // Double tap zoom
+            this.adjustPdfZoom(2.0, t.clientX, t.clientY);
+            s.lastTapTime = 0;
+          } else {
+            s.lastTapTime = now;
+            this._handlePdfCanvasPointClick(t.clientX, t.clientY);
+          }
+        }
+        s.isDragging = false;
+      }
+    });
+
+    // Mouse events for desktop/laptop
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.pdf-zoom-controls')) return;
+      const s = this.pdfViewerState;
+      if (!s) return;
+
+      s.isDragging = true;
+      s.hasMoved = false;
+      s.startX = e.clientX;
+      s.startY = e.clientY;
+      s.startPanX = s.panX;
+      s.startPanY = s.panY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      const s = this.pdfViewerState;
+      if (!s || !s.isDragging) return;
+
+      const dx = e.clientX - s.startX;
+      const dy = e.clientY - s.startY;
+      if (Math.hypot(dx, dy) > 5) {
+        s.hasMoved = true;
+        s.panX = s.startPanX + dx;
+        s.panY = s.startPanY + dy;
+        this.applyPdfViewerTransform();
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      const s = this.pdfViewerState;
+      if (!s || !s.isDragging) return;
+      
+      const wasInsideViewport = viewport.contains(e.target) || e.target === viewport;
+      if (!s.hasMoved && wasInsideViewport && !e.target.closest('.pdf-zoom-controls')) {
+        this._handlePdfCanvasPointClick(e.clientX, e.clientY);
+      }
+      s.isDragging = false;
+    });
+
+    // Mouse Wheel zoom
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.25 : 0.8;
+      this.adjustPdfZoom(factor, e.clientX, e.clientY);
+    }, { passive: false });
+  }
+
+  _handlePdfCanvasPointClick(clientX, clientY) {
+    const canvas = document.getElementById('pdf-render-canvas');
+    if (!canvas || canvas.width === 0 || canvas.height === 0) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+      return; // Click outside canvas area
+    }
+
+    const clickX = clientX - rect.left;
+    const clickY = clientY - rect.top;
+
+    // Scale back to real canvas pixels accurately
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const pdfPixelX = clickX * scaleX;
+    const pdfPixelY = clickY * scaleY;
+
+    const idx = this.calibrationState.activeGcpIndex;
+    this.calibrationState.gcps[idx].pdfX = pdfPixelX;
+    this.calibrationState.gcps[idx].pdfY = pdfPixelY;
+
+    this._renderGcpCanvasMarkers();
+    this._updateGcpInputsFromState();
+    this.showToast(`Punto P${idx + 1} marcado en el plano (X: ${pdfPixelX.toFixed(0)}, Y: ${pdfPixelY.toFixed(0)})`, 'info');
   }
 
   _bindGeorefWizardEvents() {
@@ -1409,6 +1695,13 @@ class GeoPlanApp {
       tabGeoPdf.style.borderColor = 'rgba(255,255,255,0.1)';
       if (panel3Point) panel3Point.style.display = 'flex';
       if (panelGeoPdf) panelGeoPdf.style.display = 'none';
+
+      // Auto fit on tab switch if PDF was already loaded
+      setTimeout(() => {
+        if (this.pdfViewerState && this.calibrationState.pdfDimensions?.width > 0) {
+          this.fitPdfToScreen();
+        }
+      }, 60);
     });
 
     // 1. File Input for Direct GeoPDF
@@ -1442,28 +1735,8 @@ class GeoPlanApp {
       });
     });
 
-    // Canvas click on PDF for setting GCP coordinate
-    const canvas = document.getElementById('pdf-render-canvas');
-    canvas?.addEventListener('click', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const clickY = e.clientY - rect.top;
-
-      // Scale back to real canvas pixels
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-
-      const pdfPixelX = clickX * scaleX;
-      const pdfPixelY = clickY * scaleY;
-
-      const idx = this.calibrationState.activeGcpIndex;
-      this.calibrationState.gcps[idx].pdfX = pdfPixelX;
-      this.calibrationState.gcps[idx].pdfY = pdfPixelY;
-
-      this._renderGcpCanvasMarkers();
-      this._updateGcpInputsFromState();
-      this.showToast(`Punto P${idx + 1} marcado en el plano`, 'info');
-    });
+    // Initialize gesture listeners
+    this.initPdfViewerGestures();
 
     // Coordinate System Selector (WGS84, EPSG:3116, EPSG:9377)
     document.getElementById('wizard-crs-select')?.addEventListener('change', (e) => {
@@ -1472,38 +1745,46 @@ class GeoPlanApp {
       const lbl2 = document.getElementById('lbl-gcp-c2');
       const inp1 = document.getElementById('gcp-lat-input');
       const inp2 = document.getElementById('gcp-lng-input');
+      const hint = document.getElementById('crs-format-hint');
 
       if (this.selectedWizardCrs === 'epsg3116') {
         if (lbl1) lbl1.textContent = 'Coordenada Norte (Y en metros - Bogotá):';
         if (lbl2) lbl2.textContent = 'Coordenada Este (X en metros - Bogotá):';
         if (inp1) inp1.placeholder = 'ej. 1000000.00';
         if (inp2) inp2.placeholder = 'ej. 1000000.00';
+        if (hint) hint.textContent = 'Metros (MAGNA Bogotá)';
       } else if (this.selectedWizardCrs === 'epsg9377') {
         if (lbl1) lbl1.textContent = 'Coordenada Norte (Y en metros - Origen Nal.):';
         if (lbl2) lbl2.textContent = 'Coordenada Este (X en metros - Origen Nal.):';
         if (inp1) inp1.placeholder = 'ej. 2000000.00';
         if (inp2) inp2.placeholder = 'ej. 5000000.00';
+        if (hint) hint.textContent = 'Metros (MAGNA Origen Nal.)';
       } else {
         if (lbl1) lbl1.textContent = 'Latitud (WGS84 o DMS):';
         if (lbl2) lbl2.textContent = 'Longitud (WGS84 o DMS):';
         if (inp1) inp1.placeholder = 'ej. 4.609712 ó 4°36\'35"N';
         if (inp2) inp2.placeholder = 'ej. -74.081734 ó 74°04\'54"W';
+        if (hint) hint.textContent = 'Grados decimales o DMS';
       }
 
       this._updateGcpInputsFromState();
     });
 
-    // Coordinate input changes
+    // Real-time Coordinate Input Listener (input, change, blur)
     const updateGcpFromInputs = () => {
       const idx = this.calibrationState.activeGcpIndex;
       const val1 = document.getElementById('gcp-lat-input')?.value.trim();
       const val2 = document.getElementById('gcp-lng-input')?.value.trim();
-      if (!val1 || !val2) return;
 
-      const converted = window.georefEngine.parseCoordinateInput(val1, val2, this.selectedWizardCrs);
-      if (converted) {
-        this.calibrationState.gcps[idx].lat = converted.lat;
-        this.calibrationState.gcps[idx].lng = converted.lng;
+      if (val1 && val2) {
+        const converted = window.georefEngine.parseCoordinateInput(val1, val2, this.selectedWizardCrs);
+        if (converted) {
+          this.calibrationState.gcps[idx].lat = converted.lat;
+          this.calibrationState.gcps[idx].lng = converted.lng;
+        } else {
+          this.calibrationState.gcps[idx].lat = null;
+          this.calibrationState.gcps[idx].lng = null;
+        }
       } else {
         this.calibrationState.gcps[idx].lat = null;
         this.calibrationState.gcps[idx].lng = null;
@@ -1511,26 +1792,226 @@ class GeoPlanApp {
       this._updateGcpTabsUI();
     };
 
-    document.getElementById('gcp-lat-input')?.addEventListener('change', updateGcpFromInputs);
-    document.getElementById('gcp-lng-input')?.addEventListener('change', updateGcpFromInputs);
+    ['input', 'change', 'blur'].forEach(evt => {
+      document.getElementById('gcp-lat-input')?.addEventListener(evt, updateGcpFromInputs);
+      document.getElementById('gcp-lng-input')?.addEventListener(evt, updateGcpFromInputs);
+    });
 
     // "Usar mi ubicación GPS actual para este punto"
     document.getElementById('btn-gcp-use-gps')?.addEventListener('click', () => {
-      if (!window.gpsTracker.currentPosition) {
-        this.showToast('No hay señal GPS disponible', 'warning');
-        return;
-      }
-      const { lat, lng } = window.gpsTracker.currentPosition;
-      const idx = this.calibrationState.activeGcpIndex;
-      this.calibrationState.gcps[idx].lat = lat;
-      this.calibrationState.gcps[idx].lng = lng;
-      this._updateGcpInputsFromState();
-      this._updateGcpTabsUI();
-      this.showToast(`Coordenadas GPS asignadas a P${idx + 1}`, 'success');
+      this.assignGpsToGcp(this.calibrationState.activeGcpIndex);
     });
+
+    // "Seleccionar en el mapa satelital"
+    document.getElementById('btn-gcp-pick-map')?.addEventListener('click', () => {
+      this.startMapPickForGcp(this.calibrationState.activeGcpIndex);
+    });
+
+    // Navigation buttons (Prev / Next point)
+    document.getElementById('btn-gcp-prev')?.addEventListener('click', () => {
+      if (this.calibrationState.activeGcpIndex > 0) {
+        this.calibrationState.activeGcpIndex--;
+        this._updateGcpTabsUI();
+      }
+    });
+
+    document.getElementById('btn-gcp-next')?.addEventListener('click', () => {
+      if (this.calibrationState.activeGcpIndex < 2) {
+        this.calibrationState.activeGcpIndex++;
+        this._updateGcpTabsUI();
+      } else {
+        this._applyGeoreferencingCalibration();
+      }
+    });
+
+    // Full 3-Point Table Modal Triggers
+    document.getElementById('btn-open-gcp-table')?.addEventListener('click', () => this.openGcpTableModal());
+    document.getElementById('btn-close-gcp-table')?.addEventListener('click', () => this.closeGcpTableModal());
+    document.getElementById('btn-save-gcp-table')?.addEventListener('click', () => this.saveGcpTableModal());
+    document.getElementById('btn-apply-from-gcp-table')?.addEventListener('click', () => {
+      this.saveGcpTableModal();
+      this._applyGeoreferencingCalibration();
+    });
+
+    // Table modal CRS selector
+    document.getElementById('table-crs-select')?.addEventListener('change', (e) => {
+      this.selectedWizardCrs = e.target.value;
+      const wizardSelect = document.getElementById('wizard-crs-select');
+      if (wizardSelect) wizardSelect.value = e.target.value;
+      this.openGcpTableModal(); // Refresh table inputs formatting
+    });
+
+    // Map picker cancel button
+    document.getElementById('btn-cancel-map-picker')?.addEventListener('click', () => this.cancelMapPick());
 
     // Apply Georeferencing
     document.getElementById('btn-apply-georef')?.addEventListener('click', () => this._applyGeoreferencingCalibration());
+  }
+
+  /* ==========================================================================
+     3-Point Calibration Full Table Modal & Map Picker Handlers
+     ========================================================================== */
+  openGcpTableModal() {
+    const modal = document.getElementById('modal-gcp-table-backdrop');
+    if (!modal) return;
+
+    // Sync CRS selector
+    const tableCrs = document.getElementById('table-crs-select');
+    if (tableCrs) tableCrs.value = this.selectedWizardCrs;
+
+    // Populate each row (P1, P2, P3)
+    const crs = this.selectedWizardCrs;
+    [0, 1, 2].forEach(i => {
+      const gcp = this.calibrationState.gcps[i];
+      const pNum = i + 1;
+      
+      const pixelBadge = document.getElementById(`table-p${pNum}-pixel`);
+      if (pixelBadge) {
+        pixelBadge.textContent = gcp.pdfX !== null 
+          ? `Pixel: (${gcp.pdfX.toFixed(0)}, ${gcp.pdfY.toFixed(0)})` 
+          : 'Pixel: Sin fijar en plano';
+        pixelBadge.style.color = gcp.pdfX !== null ? '#10b981' : '#94a3b8';
+      }
+
+      const inp1 = document.getElementById(`table-p${pNum}-c1`);
+      const inp2 = document.getElementById(`table-p${pNum}-c2`);
+      const lbl1 = document.getElementById(`lbl-table-p${pNum}-c1`);
+      const lbl2 = document.getElementById(`lbl-table-p${pNum}-c2`);
+
+      if (crs === 'epsg3116') {
+        if (lbl1) lbl1.textContent = 'Norte (Y en metros - Bogotá):';
+        if (lbl2) lbl2.textContent = 'Este (X en metros - Bogotá):';
+        if (inp1) inp1.placeholder = 'ej. 1000000.00';
+        if (inp2) inp2.placeholder = 'ej. 1000000.00';
+      } else if (crs === 'epsg9377') {
+        if (lbl1) lbl1.textContent = 'Norte (Y en metros - Origen Nal.):';
+        if (lbl2) lbl2.textContent = 'Este (X en metros - Origen Nal.):';
+        if (inp1) inp1.placeholder = 'ej. 2000000.00';
+        if (inp2) inp2.placeholder = 'ej. 5000000.00';
+      } else {
+        if (lbl1) lbl1.textContent = 'Latitud (WGS84 / DMS):';
+        if (lbl2) lbl2.textContent = 'Longitud (WGS84 / DMS):';
+        if (inp1) inp1.placeholder = 'ej. 4.609712 ó 4°36\'35"N';
+        if (inp2) inp2.placeholder = 'ej. -74.081734 ó 74°04\'54"W';
+      }
+
+      if (gcp.lat !== null && gcp.lng !== null) {
+        if (crs === 'epsg3116') {
+          const pt = window.georefEngine.wgs84ToEpsg3116(gcp.lat, gcp.lng);
+          if (inp1) inp1.value = pt.norte.toFixed(2);
+          if (inp2) inp2.value = pt.este.toFixed(2);
+        } else if (crs === 'epsg9377') {
+          const pt = window.georefEngine.wgs84ToEpsg9377(gcp.lat, gcp.lng);
+          if (inp1) inp1.value = pt.norte.toFixed(2);
+          if (inp2) inp2.value = pt.este.toFixed(2);
+        } else {
+          if (inp1) inp1.value = gcp.lat.toFixed(6);
+          if (inp2) inp2.value = gcp.lng.toFixed(6);
+        }
+      } else {
+        if (inp1) inp1.value = '';
+        if (inp2) inp2.value = '';
+      }
+    });
+
+    modal.classList.add('active');
+  }
+
+  closeGcpTableModal() {
+    const modal = document.getElementById('modal-gcp-table-backdrop');
+    if (modal) modal.classList.remove('active');
+  }
+
+  saveGcpTableModal() {
+    const crs = document.getElementById('table-crs-select')?.value || this.selectedWizardCrs;
+    this.selectedWizardCrs = crs;
+    const wizardSelect = document.getElementById('wizard-crs-select');
+    if (wizardSelect) wizardSelect.value = crs;
+
+    [0, 1, 2].forEach(i => {
+      const pNum = i + 1;
+      const val1 = document.getElementById(`table-p${pNum}-c1`)?.value.trim();
+      const val2 = document.getElementById(`table-p${pNum}-c2`)?.value.trim();
+
+      if (val1 && val2) {
+        const converted = window.georefEngine.parseCoordinateInput(val1, val2, crs);
+        if (converted) {
+          this.calibrationState.gcps[i].lat = converted.lat;
+          this.calibrationState.gcps[i].lng = converted.lng;
+        }
+      }
+    });
+
+    this.closeGcpTableModal();
+    this._updateGcpTabsUI();
+    this.showToast('Coordenadas de los 3 puntos actualizadas', 'success');
+  }
+
+  assignGpsToGcp(pointIndex) {
+    if (!window.gpsTracker || !window.gpsTracker.currentPosition) {
+      this.showToast('No hay señal GPS disponible en este momento', 'warning');
+      return;
+    }
+    const { lat, lng } = window.gpsTracker.currentPosition;
+    this.calibrationState.gcps[pointIndex].lat = lat;
+    this.calibrationState.gcps[pointIndex].lng = lng;
+    this._updateGcpTabsUI();
+
+    // If table modal is open, refresh table modal inputs as well
+    const tableModal = document.getElementById('modal-gcp-table-backdrop');
+    if (tableModal && tableModal.classList.contains('active')) {
+      this.openGcpTableModal();
+    }
+
+    this.showToast(`📍 Coordenadas GPS asignadas al Punto P${pointIndex + 1}`, 'success');
+  }
+
+  startMapPickForGcp(pointIndex) {
+    this.calibrationState.activeGcpIndex = pointIndex;
+    
+    // Close modals
+    this.closeGcpTableModal();
+    document.getElementById('modal-georef-wizard')?.classList.remove('active');
+
+    // Show floating banner
+    const banner = document.getElementById('banner-gcp-map-picker');
+    const title = document.getElementById('map-picker-title');
+    if (title) title.textContent = `Modo Selección: Punto P${pointIndex + 1}`;
+    if (banner) banner.style.display = 'flex';
+
+    this.showToast(`Toque sobre el mapa satelital para capturar la coordenada de P${pointIndex + 1}`, 'info');
+
+    // Attach single map click listener
+    const map = window.mapEngine?.map;
+    if (map) {
+      const onMapClick = (e) => {
+        const { lat, lng } = e.latlng;
+        this.calibrationState.gcps[pointIndex].lat = lat;
+        this.calibrationState.gcps[pointIndex].lng = lng;
+
+        if (banner) banner.style.display = 'none';
+        document.getElementById('modal-georef-wizard')?.classList.add('active');
+        this._updateGcpTabsUI();
+        this.showToast(`🗺️ Coordenada asignada al Punto P${pointIndex + 1} desde el mapa`, 'success');
+      };
+
+      this._activeMapPickHandler = onMapClick;
+      map.once('click', onMapClick);
+    }
+  }
+
+  cancelMapPick() {
+    const banner = document.getElementById('banner-gcp-map-picker');
+    if (banner) banner.style.display = 'none';
+
+    const map = window.mapEngine?.map;
+    if (map && this._activeMapPickHandler) {
+      map.off('click', this._activeMapPickHandler);
+      this._activeMapPickHandler = null;
+    }
+
+    document.getElementById('modal-georef-wizard')?.classList.add('active');
+    this.showToast('Selección en mapa cancelada', 'info');
   }
 
   async _handleGeoPdfLoaded(file) {
@@ -1566,7 +2047,9 @@ class GeoPlanApp {
         statusBox.style.display = 'block';
         statusTitle.textContent = `GeoPDF detectado: "${file.name}"`;
         const b = loadResult.geoMetadata.bounds;
-        statusDetails.innerHTML = `<b>Límites extraídos:</b> Lat [${b[0][0].toFixed(5)}, ${b[1][0].toFixed(5)}], Lon [${b[0][1].toFixed(5)}, ${b[1][1].toFixed(5)}]`;
+        const crsName = loadResult.geoMetadata.crsName || 'WGS84 (GPS)';
+        statusDetails.innerHTML = `<div style="margin-bottom: 4px;"><b>Sistema de Referencia (CRS):</b> <span style="color:#38bdf8; font-weight:700;">${crsName}</span></div>` +
+          `<div><b>Límites geográficos:</b> Lat [${b[0][0].toFixed(6)}, ${b[1][0].toFixed(6)}], Lon [${b[0][1].toFixed(6)}, ${b[1][1].toFixed(6)}]</div>`;
 
         // Pre-fill BBox inputs as well
         document.getElementById('bbox-north-input').value = b[1][0].toFixed(6);
@@ -1574,7 +2057,7 @@ class GeoPlanApp {
         document.getElementById('bbox-west-input').value = b[0][1].toFixed(6);
         document.getElementById('bbox-east-input').value = b[1][1].toFixed(6);
 
-        this.showToast('¡Plano GeoPDF detectado automáticamente con coordenadas!', 'success');
+        this.showToast(`¡GeoPDF detectado con éxito! (${crsName})`, 'success');
       } else {
         // No embedded GeoPDF header found, encourage BBox entry or 3-Point
         statusBox.style.display = 'block';
@@ -1594,28 +2077,43 @@ class GeoPlanApp {
       return;
     }
 
-    const { file, name, renderDim, renderDataUrl, geoMetadata } = this.currentGeoPdfData;
+    try {
+      this.showToast('Proyectando plano en el mapa...', 'info');
+      const { file, name, renderDim, renderDataUrl, geoMetadata } = this.currentGeoPdfData;
 
-    if (geoMetadata && geoMetadata.hasGeoMetadata && typeof geoMetadata.getCanvasGcps === 'function') {
-      const gcps = geoMetadata.getCanvasGcps(renderDim.scale || 2.0);
-      const georefResult = window.georefEngine.calculateAffineTransformation(gcps, renderDim.width, renderDim.height);
+      if (!this.currentProject) {
+        await this._loadOrCreateDefaultProject();
+      }
 
-      const planRecord = {
-        projectId: this.currentProject.id,
-        name: name,
-        renderDataUrl: renderDataUrl,
-        width: renderDim.width,
-        height: renderDim.height,
-        georef: georefResult
-      };
+      if (geoMetadata && geoMetadata.hasGeoMetadata && typeof geoMetadata.getCanvasGcps === 'function') {
+        const gcps = geoMetadata.getCanvasGcps(renderDim.scale || 2.0);
+        const georefResult = window.georefEngine.calculateAffineTransformation(gcps, renderDim.width, renderDim.height);
 
-      const savedPlan = await window.db.savePdfPlan(planRecord);
-      this.currentPdfPlan = savedPlan;
-      this._applyPdfPlanToMap(savedPlan);
-      this.closePdfWizard();
-      this.showToast(`Plano GeoPDF "${name}" proyectado en el mapa con éxito`, 'success');
-    } else {
-      this._applyBboxGeoref();
+        const planRecord = {
+          projectId: this.currentProject ? this.currentProject.id : 'default_project',
+          name: name,
+          renderDataUrl: renderDataUrl,
+          width: renderDim.width,
+          height: renderDim.height,
+          georef: georefResult
+        };
+
+        const savedPlan = await window.db.savePdfPlan(planRecord);
+        this.currentPdfPlan = savedPlan;
+        this._applyPdfPlanToMap(savedPlan);
+        this.closePdfWizard();
+
+        if (georefResult.bounds) {
+          window.mapEngine?.map?.fitBounds(georefResult.bounds, { padding: [30, 30] });
+        }
+
+        this.showToast(`Plano GeoPDF "${name}" proyectado en el mapa con éxito`, 'success');
+      } else {
+        await this._applyBboxGeoref();
+      }
+    } catch (err) {
+      console.error('Error in _applyAutoGeoPdf:', err);
+      this.showToast('Error al proyectar plano: ' + (err.message || err), 'error');
     }
   }
 
@@ -1625,35 +2123,39 @@ class GeoPlanApp {
       return;
     }
 
-    const nStr = document.getElementById('bbox-north-input').value.trim();
-    const sStr = document.getElementById('bbox-south-input').value.trim();
-    const wStr = document.getElementById('bbox-west-input').value.trim();
-    const eStr = document.getElementById('bbox-east-input').value.trim();
-
-    const north = window.georefEngine.parseDMSToDecimal(nStr);
-    const south = window.georefEngine.parseDMSToDecimal(sStr);
-    const west = window.georefEngine.parseDMSToDecimal(wStr);
-    const east = window.georefEngine.parseDMSToDecimal(eStr);
-
-    if (isNaN(north) || isNaN(south) || isNaN(west) || isNaN(east)) {
-      this.showToast('Ingrese las 4 coordenadas límite (Norte, Sur, Este, Oeste).', 'warning');
-      return;
-    }
-
-    const { name, renderDim, renderDataUrl } = this.currentGeoPdfData;
-
-    // Build 3 GCPs from BBox
-    const gcps = [
-      { pdfX: 0, pdfY: 0, lat: north, lng: west }, // Top-Left
-      { pdfX: renderDim.width, pdfY: 0, lat: north, lng: east }, // Top-Right
-      { pdfX: 0, pdfY: renderDim.height, lat: south, lng: west }  // Bottom-Left
-    ];
-
     try {
+      const nStr = document.getElementById('bbox-north-input').value.trim();
+      const sStr = document.getElementById('bbox-south-input').value.trim();
+      const wStr = document.getElementById('bbox-west-input').value.trim();
+      const eStr = document.getElementById('bbox-east-input').value.trim();
+
+      const north = window.georefEngine.parseDMSToDecimal(nStr);
+      const south = window.georefEngine.parseDMSToDecimal(sStr);
+      const west = window.georefEngine.parseDMSToDecimal(wStr);
+      const east = window.georefEngine.parseDMSToDecimal(eStr);
+
+      if (isNaN(north) || isNaN(south) || isNaN(west) || isNaN(east)) {
+        this.showToast('Ingrese las 4 coordenadas límite (Norte, Sur, Este, Oeste).', 'warning');
+        return;
+      }
+
+      const { name, renderDim, renderDataUrl } = this.currentGeoPdfData;
+
+      if (!this.currentProject) {
+        await this._loadOrCreateDefaultProject();
+      }
+
+      // Build 3 GCPs from BBox
+      const gcps = [
+        { pdfX: 0, pdfY: 0, lat: north, lng: west }, // Top-Left
+        { pdfX: renderDim.width, pdfY: 0, lat: north, lng: east }, // Top-Right
+        { pdfX: 0, pdfY: renderDim.height, lat: south, lng: west }  // Bottom-Left
+      ];
+
       const georefResult = window.georefEngine.calculateAffineTransformation(gcps, renderDim.width, renderDim.height);
 
       const planRecord = {
-        projectId: this.currentProject.id,
+        projectId: this.currentProject ? this.currentProject.id : 'default_project',
         name: name,
         renderDataUrl: renderDataUrl,
         width: renderDim.width,
@@ -1665,6 +2167,11 @@ class GeoPlanApp {
       this.currentPdfPlan = savedPlan;
       this._applyPdfPlanToMap(savedPlan);
       this.closePdfWizard();
+
+      if (georefResult.bounds) {
+        window.mapEngine?.map?.fitBounds(georefResult.bounds, { padding: [30, 30] });
+      }
+
       this.showToast(`Plano georreferenciado proyectado en el mapa`, 'success');
     } catch (err) {
       console.error(err);
@@ -1685,6 +2192,11 @@ class GeoPlanApp {
       document.getElementById('pdf-upload-placeholder')?.classList.add('hidden');
       document.getElementById('pdf-wizard-content')?.classList.remove('hidden');
 
+      this.initPdfViewerGestures();
+      setTimeout(() => {
+        this.fitPdfToScreen();
+      }, 50);
+
       if (loadResult.geoMetadata && loadResult.geoMetadata.hasGeoMetadata && typeof loadResult.geoMetadata.getCanvasGcps === 'function') {
         const autoGcps = loadResult.geoMetadata.getCanvasGcps(renderDim.scale || 2.0);
         this.calibrationState.gcps = [
@@ -1692,9 +2204,21 @@ class GeoPlanApp {
           { pdfX: autoGcps[1].pdfX, pdfY: autoGcps[1].pdfY, lat: autoGcps[1].lat, lng: autoGcps[1].lng },
           { pdfX: autoGcps[2].pdfX, pdfY: autoGcps[2].pdfY, lat: autoGcps[2].lat, lng: autoGcps[2].lng }
         ];
+
+        if (loadResult.geoMetadata.detectedCrs === 'epsg9377') {
+          this.selectedWizardCrs = 'epsg9377';
+          const sel = document.getElementById('wizard-crs-select');
+          if (sel) sel.value = 'epsg9377';
+        } else if (loadResult.geoMetadata.detectedCrs === 'epsg3116') {
+          this.selectedWizardCrs = 'epsg3116';
+          const sel = document.getElementById('wizard-crs-select');
+          if (sel) sel.value = 'epsg3116';
+        }
+
         this._renderGcpCanvasMarkers();
         this._updateGcpTabsUI();
-        this.showToast(`✨ GeoPDF detectado: Puntos P1, P2 y P3 calibrados automáticamente. Presione "Aplicar al Mapa".`, 'success');
+        const crsName = loadResult.geoMetadata.crsName || 'WGS84';
+        this.showToast(`✨ GeoPDF detectado (${crsName}): Puntos P1, P2 y P3 calibrados automáticamente. Presione "Aplicar al Mapa".`, 'success');
       } else {
         this.showToast(`Plano "${file.name}" cargado. Toque en el plano para definir los 3 puntos.`, 'success');
       }
@@ -1706,14 +2230,47 @@ class GeoPlanApp {
 
   _updateGcpTabsUI() {
     const idx = this.calibrationState.activeGcpIndex;
-    document.querySelectorAll('.gcp-pill').forEach(pill => {
-      const pIdx = parseInt(pill.dataset.gcp);
-      pill.classList.toggle('active', pIdx === idx);
-      
+    
+    // Update pills and badges
+    [0, 1, 2].forEach(pIdx => {
+      const pill = document.getElementById(`pill-gcp-0`)?.parentElement?.querySelector(`[data-gcp="${pIdx}"]`);
+      const badge = document.getElementById(`badge-gcp-${pIdx}`);
       const gcp = this.calibrationState.gcps[pIdx];
-      const isComplete = gcp.pdfX !== null && gcp.lat !== null && gcp.lng !== null;
-      pill.classList.toggle('completed', isComplete);
+
+      if (pill) {
+        pill.classList.toggle('active', pIdx === idx);
+        const isComplete = gcp.pdfX !== null && gcp.lat !== null && gcp.lng !== null;
+        pill.classList.toggle('completed', isComplete);
+      }
+
+      if (badge) {
+        if (gcp.pdfX !== null && gcp.lat !== null && gcp.lng !== null) {
+          badge.textContent = '✅';
+        } else if (gcp.pdfX !== null) {
+          badge.textContent = '📍';
+        } else if (gcp.lat !== null && gcp.lng !== null) {
+          badge.textContent = '🌐';
+        } else {
+          badge.textContent = '⚠️';
+        }
+      }
     });
+
+    // Update active point title
+    const activeTitle = document.getElementById('gcp-active-title');
+    if (activeTitle) {
+      activeTitle.textContent = `Punto ${idx + 1} (P${idx + 1})`;
+    }
+
+    // Update Next Button Text
+    const btnNext = document.getElementById('btn-gcp-next');
+    if (btnNext) {
+      if (idx < 2) {
+        btnNext.innerHTML = `Sig. Punto (P${idx + 2}) ➡️`;
+      } else {
+        btnNext.innerHTML = `🚀 Aplicar Calibración`;
+      }
+    }
 
     this._updateGcpInputsFromState();
   }
@@ -1725,29 +2282,43 @@ class GeoPlanApp {
     const latInput = document.getElementById('gcp-lat-input');
     const lngInput = document.getElementById('gcp-lng-input');
     const pixelInfo = document.getElementById('gcp-pixel-info');
+    const statusBox = document.getElementById('gcp-coord-status-box');
 
     if (gcp.lat !== null && gcp.lng !== null) {
       if (this.selectedWizardCrs === 'epsg3116') {
         const pt = window.georefEngine.wgs84ToEpsg3116(gcp.lat, gcp.lng);
-        if (latInput) latInput.value = pt.norte.toFixed(2);
-        if (lngInput) lngInput.value = pt.este.toFixed(2);
+        if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
+        if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
+        if (statusBox) {
+          statusBox.innerHTML = `<span style="color: #10b981; font-weight: 700;">✓ N: ${pt.norte.toFixed(2)}m, E: ${pt.este.toFixed(2)}m</span>`;
+        }
       } else if (this.selectedWizardCrs === 'epsg9377') {
         const pt = window.georefEngine.wgs84ToEpsg9377(gcp.lat, gcp.lng);
-        if (latInput) latInput.value = pt.norte.toFixed(2);
-        if (lngInput) lngInput.value = pt.este.toFixed(2);
+        if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
+        if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
+        if (statusBox) {
+          statusBox.innerHTML = `<span style="color: #10b981; font-weight: 700;">✓ N: ${pt.norte.toFixed(2)}m, E: ${pt.este.toFixed(2)}m</span>`;
+        }
       } else {
-        if (latInput) latInput.value = gcp.lat.toFixed(6);
-        if (lngInput) lngInput.value = gcp.lng.toFixed(6);
+        if (latInput && document.activeElement !== latInput) latInput.value = gcp.lat.toFixed(6);
+        if (lngInput && document.activeElement !== lngInput) lngInput.value = gcp.lng.toFixed(6);
+        if (statusBox) {
+          statusBox.innerHTML = `<span style="color: #10b981; font-weight: 700;">✓ Lat ${gcp.lat.toFixed(6)}°, Lon ${gcp.lng.toFixed(6)}°</span>`;
+        }
       }
     } else {
-      if (latInput) latInput.value = '';
-      if (lngInput) lngInput.value = '';
+      if (latInput && document.activeElement !== latInput) latInput.value = '';
+      if (lngInput && document.activeElement !== lngInput) lngInput.value = '';
+      if (statusBox) {
+        statusBox.innerHTML = `<span style="color: #f59e0b;">⚠️ Ingrese las coordenadas reales de P${idx + 1}</span>`;
+      }
     }
 
     if (pixelInfo) {
       pixelInfo.textContent = gcp.pdfX !== null 
         ? `Pixel: (${gcp.pdfX.toFixed(0)}, ${gcp.pdfY.toFixed(0)})` 
         : 'Toque en el plano para definir pixel';
+      pixelInfo.style.color = gcp.pdfX !== null ? '#10b981' : '#94a3b8';
     }
   }
 
@@ -1785,6 +2356,10 @@ class GeoPlanApp {
     }
 
     try {
+      if (!this.currentProject) {
+        await this._loadOrCreateDefaultProject();
+      }
+
       const { width, height } = this.calibrationState.pdfDimensions;
       const georefResult = window.georefEngine.calculateAffineTransformation(gcps, width, height);
 
@@ -1792,7 +2367,7 @@ class GeoPlanApp {
       const renderDataUrl = window.pdfLoader.getRenderDataUrl();
 
       const planRecord = {
-        projectId: this.currentProject.id,
+        projectId: this.currentProject ? this.currentProject.id : 'default_project',
         name: this.calibrationState.loadedFileName || 'Plano Georreferenciado',
         renderDataUrl: renderDataUrl,
         width: width,
@@ -1805,6 +2380,10 @@ class GeoPlanApp {
 
       this._applyPdfPlanToMap(savedPlan);
       this.closePdfWizard();
+
+      if (georefResult.bounds) {
+        window.mapEngine?.map?.fitBounds(georefResult.bounds, { padding: [30, 30] });
+      }
 
       this.showToast(`¡Plano georreferenciado! Error RMS: ${georefResult.rmse.toFixed(2)}m`, 'success');
     } catch (err) {

@@ -951,18 +951,27 @@ body.nav-guidance-active .leaflet-control-zoom {
 .pdf-canvas-viewport {
   flex: 1;
   position: relative;
-  background: #020617;
-  overflow: auto;
-  touch-action: pan-x pan-y pinch-zoom;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+  min-height: 220px;
+}
+
+#pdf-canvas-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 #pdf-render-canvas {
-  box-shadow: 0 0 30px rgba(0,0,0,0.8);
+  display: block;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85);
   max-width: none;
-  cursor: crosshair;
+  background: #ffffff;
 }
 
 .canvas-crosshair-layer {
@@ -974,27 +983,123 @@ body.nav-guidance-active .leaflet-control-zoom {
   pointer-events: none;
 }
 
+/* Floating Zoom & Pan Controls in PDF Viewport */
+.pdf-zoom-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
+  padding: 4px 6px;
+  border-radius: 24px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+  z-index: 50;
+}
+
+.btn-pdf-zoom {
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  transition: all 0.15s ease;
+}
+
+.btn-pdf-zoom:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+}
+
+.btn-pdf-zoom:active {
+  transform: scale(0.92);
+}
+
+.pdf-zoom-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #38bdf8;
+  padding: 2px 6px;
+  min-width: 44px;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.pdf-viewport-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(6px);
+  padding: 3px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  color: #94a3b8;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 40;
+  transition: opacity 0.3s;
+}
+
 .gcp-marker-point {
   position: absolute;
-  width: 24px;
-  height: 24px;
-  margin-left: -12px;
-  margin-top: -12px;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  margin-top: -13px;
   border-radius: 50%;
-  background: rgba(244, 63, 94, 0.3);
+  background: rgba(244, 63, 94, 0.35);
   border: 2px solid var(--accent-rose);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 900;
   color: #fff;
-  box-shadow: 0 0 10px var(--accent-rose);
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.8), inset 0 0 4px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
 }
 
-.gcp-marker-point.p1 { border-color: var(--accent-cyan); background: rgba(6, 182, 212, 0.3); box-shadow: 0 0 10px var(--accent-cyan); }
-.gcp-marker-point.p2 { border-color: var(--accent-amber); background: rgba(245, 158, 11, 0.3); box-shadow: 0 0 10px var(--accent-amber); }
-.gcp-marker-point.p3 { border-color: var(--accent-emerald); background: rgba(16, 185, 129, 0.3); box-shadow: 0 0 10px var(--accent-emerald); }
+.gcp-marker-point::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 4px #000;
+}
+
+.gcp-marker-point.p1 {
+  border-color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.4);
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.9);
+}
+
+.gcp-marker-point.p2 {
+  border-color: var(--accent-amber);
+  background: rgba(245, 158, 11, 0.4);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.9);
+}
+
+.gcp-marker-point.p3 {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.9);
+}
 
 .georef-bottom-panel {
   background: var(--bg-secondary);

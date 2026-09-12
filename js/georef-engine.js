@@ -226,6 +226,92 @@ class GeorefEngine {
   }
 
   /**
+   * UTM Zone to WGS84 Lat/Lng
+   * @param {number} este - Easting in meters
+   * @param {number} norte - Northing in meters
+   * @param {number} zone - UTM Zone number (1..60)
+   * @param {boolean} isNorth - true if Northern hemisphere, false if Southern
+   */
+  utmToWgs84(este, norte, zone = 18, isNorth = true) {
+    const lon0 = zone * 6 - 183;
+    const lat0 = 0.0;
+    const k0 = 0.9996;
+    const x0 = 500000.0;
+    const y0 = isNorth ? 0.0 : 10000000.0;
+    return this._transverseMercatorInverse(este, norte, lat0, lon0, k0, x0, y0);
+  }
+
+  /**
+   * WGS84 Lat/Lng to UTM Zone
+   */
+  wgs84ToUtm(lat, lng, forcedZone = null) {
+    const zone = forcedZone || Math.floor((lng + 180) / 6) + 1;
+    const isNorth = lat >= 0;
+    const lon0 = zone * 6 - 183;
+    const lat0 = 0.0;
+    const k0 = 0.9996;
+    const x0 = 500000.0;
+    const y0 = isNorth ? 0.0 : 10000000.0;
+    const res = this._transverseMercatorForward(lat, lng, lat0, lon0, k0, x0, y0);
+    return {
+      este: res.este,
+      norte: res.norte,
+      zone: zone,
+      hemisphere: isNorth ? 'N' : 'S'
+    };
+  }
+
+  /**
+   * Universal coordinate converter to WGS84 Lat/Lng from any known CRS
+   */
+  projectedToWgs84(c1, c2, crsInfo = 'wgs84') {
+    if (!crsInfo || crsInfo === 'wgs84' || crsInfo === 'EPSG:4326' || crsInfo === '4326') {
+      const lat = this.parseDMSToDecimal(c1);
+      const lng = this.parseDMSToDecimal(c2);
+      return { lat, lng };
+    }
+    
+    const num1 = typeof c1 === 'number' ? c1 : parseFloat(c1);
+    const num2 = typeof c2 === 'number' ? c2 : parseFloat(c2);
+    if (isNaN(num1) || isNaN(num2)) return null;
+
+    const crsStr = String(crsInfo).toUpperCase();
+
+    if (crsStr.includes('3116') || crsStr.includes('BOGOTA')) {
+      return this.epsg3116ToWgs84(num2, num1); // Este, Norte
+    }
+    if (crsStr.includes('9377') || crsStr.includes('ORIGEN') || crsStr.includes('CTM12')) {
+      return this.epsg9377ToWgs84(num2, num1); // Este, Norte
+    }
+    if (crsStr.includes('3857') || crsStr.includes('900913') || crsStr.includes('MERCATOR')) {
+      return this.mercatorToLatLng(num2, num1); // X, Y
+    }
+
+    // Check UTM EPSG (32601..32660 for North, 32701..32760 for South)
+    const utmMatch = crsStr.match(/32([67])(\d{2})/);
+    if (utmMatch) {
+      const isNorth = utmMatch[1] === '6';
+      const zone = parseInt(utmMatch[2], 10);
+      return this.utmToWgs84(num2, num1, zone, isNorth);
+    }
+
+    // Check UTM in text like "UTM ZONE 18N" or "18N"
+    const utmTextMatch = crsStr.match(/UTM\s*(?:ZONE\s*)?(\d{1,2})\s*([NS]?)/i) || crsStr.match(/(\d{1,2})\s*([NS])\b/i);
+    if (utmTextMatch) {
+      const zone = parseInt(utmTextMatch[1], 10);
+      const isNorth = (utmTextMatch[2] || 'N').toUpperCase() !== 'S';
+      return this.utmToWgs84(num2, num1, zone, isNorth);
+    }
+
+    // Default fallback: If c1 and c2 look like Lat/Lng (-90..90, -180..180)
+    if (Math.abs(num1) <= 90 && Math.abs(num2) <= 180) {
+      return { lat: num1, lng: num2 };
+    }
+
+    return null;
+  }
+
+  /**
    * Universal coordinate parser converting input into {lat, lng} based on selected CRS
    */
   parseCoordinateInput(val1, val2, crs = 'wgs84') {
@@ -253,14 +339,15 @@ class GeorefEngine {
      ========================================================================== */
 
   /**
-   * Solves 2D Affine Transformation Matrix from 3 Ground Control Points (GCPs).
-   * @param {Array<{pdfX: number, pdfY: number, lat: number, lng: number}>} gcps - Array of 3 points
+   * Solves 2D Affine Transformation Matrix from 3 or more Ground Control Points (GCPs).
+   * Supports 3-point exact system or N-point least-squares regression.
+   * @param {Array<{pdfX: number, pdfY: number, lat: number, lng: number}>} gcps - Array of 3 or more points
    * @param {number} pdfWidth - Width of the PDF in pixels
    * @param {number} pdfHeight - Height of the PDF in pixels
    */
   calculateAffineTransformation(gcps, pdfWidth, pdfHeight) {
-    if (!gcps || gcps.length !== 3) {
-      throw new Error('Se requieren exactamente 3 puntos de control (GCP) para la calibración afín.');
+    if (!gcps || gcps.length < 3) {
+      throw new Error('Se requieren al menos 3 puntos de control (GCP) para la calibración afín.');
     }
 
     // Convert geographic coordinates to projected Web Mercator (meters)
@@ -274,24 +361,81 @@ class GeorefEngine {
       };
     });
 
-    const [p1, p2, p3] = points;
+    let a, b, c, d, e, f;
 
-    // Determinant of the 3x3 matrix [u, v, 1]
-    const det = p1.u * (p2.v - p3.v) - p1.v * (p2.u - p3.u) + (p2.u * p3.v - p3.u * p2.v);
+    if (points.length === 3) {
+      const [p1, p2, p3] = points;
+      const det = p1.u * (p2.v - p3.v) - p1.v * (p2.u - p3.u) + (p2.u * p3.v - p3.u * p2.v);
 
-    if (Math.abs(det) < 1e-7) {
-      throw new Error('Los 3 puntos seleccionados son colineales o están demasiado juntos. Seleccione 3 puntos que formen un triángulo amplio sobre el plano.');
+      if (Math.abs(det) < 1e-7) {
+        throw new Error('Los 3 puntos seleccionados son colineales o están demasiado juntos. Seleccione 3 puntos que formen un triángulo amplio sobre el plano.');
+      }
+
+      a = (p1.x * (p2.v - p3.v) + p2.x * (p3.v - p1.v) + p3.x * (p1.v - p2.v)) / det;
+      b = (p1.x * (p3.u - p2.u) + p2.x * (p1.u - p3.u) + p3.x * (p2.u - p1.u)) / det;
+      c = (p1.x * (p2.u * p3.v - p3.u * p2.v) + p2.x * (p3.u * p1.v - p1.u * p3.v) + p3.x * (p1.u * p2.v - p2.u * p1.v)) / det;
+
+      d = (p1.y * (p2.v - p3.v) + p2.y * (p3.v - p1.v) + p3.y * (p1.v - p2.v)) / det;
+      e = (p1.y * (p3.u - p2.u) + p2.y * (p1.u - p3.u) + p3.y * (p2.u - p1.u)) / det;
+      f = (p1.y * (p2.u * p3.v - p3.u * p2.v) + p2.y * (p3.u * p1.v - p1.u * p3.v) + p3.y * (p1.u * p2.v - p2.u * p1.v)) / det;
+    } else {
+      // Least squares for N >= 3 points
+      let su2 = 0, sv2 = 0, suv = 0, su = 0, sv = 0, n = points.length;
+      let sux = 0, svx = 0, sx = 0;
+      let suy = 0, svy = 0, sy = 0;
+
+      for (const p of points) {
+        su2 += p.u * p.u;
+        sv2 += p.v * p.v;
+        suv += p.u * p.v;
+        su += p.u;
+        sv += p.v;
+
+        sux += p.u * p.x;
+        svx += p.v * p.x;
+        sx += p.x;
+
+        suy += p.u * p.y;
+        svy += p.v * p.y;
+        sy += p.y;
+      }
+
+      // Normal matrix M = [ [su2, suv, su], [suv, sv2, sv], [su, sv, n] ]
+      const detM = su2 * (sv2 * n - sv * sv) - suv * (suv * n - sv * su) + su * (suv * sv - sv2 * su);
+
+      if (Math.abs(detM) < 1e-7) {
+        // Fallback: take first 3 points
+        const [p1, p2, p3] = points;
+        const det = p1.u * (p2.v - p3.v) - p1.v * (p2.u - p3.u) + (p2.u * p3.v - p3.u * p2.v);
+        a = (p1.x * (p2.v - p3.v) + p2.x * (p3.v - p1.v) + p3.x * (p1.v - p2.v)) / det;
+        b = (p1.x * (p3.u - p2.u) + p2.x * (p1.u - p3.u) + p3.x * (p2.u - p1.u)) / det;
+        c = (p1.x * (p2.u * p3.v - p3.u * p2.v) + p2.x * (p3.u * p1.v - p1.u * p3.v) + p3.x * (p1.u * p2.v - p2.u * p1.v)) / det;
+        d = (p1.y * (p2.v - p3.v) + p2.y * (p3.v - p1.v) + p3.y * (p1.v - p2.v)) / det;
+        e = (p1.y * (p3.u - p2.u) + p2.y * (p1.u - p3.u) + p3.y * (p2.u - p1.u)) / det;
+        f = (p1.y * (p2.u * p3.v - p3.u * p2.v) + p2.y * (p3.u * p1.v - p1.u * p3.v) + p3.y * (p1.u * p2.v - p2.u * p1.v)) / det;
+      } else {
+        // Inverse matrix elements
+        const inv00 = (sv2 * n - sv * sv) / detM;
+        const inv01 = (su * sv - suv * n) / detM;
+        const inv02 = (suv * sv - sv2 * su) / detM;
+
+        const inv10 = (su * sv - suv * n) / detM;
+        const inv11 = (su2 * n - su * su) / detM;
+        const inv12 = (suv * su - su2 * sv) / detM;
+
+        const inv20 = (suv * sv - sv2 * su) / detM;
+        const inv21 = (suv * su - su2 * sv) / detM;
+        const inv22 = (su2 * sv2 - suv * suv) / detM;
+
+        a = inv00 * sux + inv01 * svx + inv02 * sx;
+        b = inv10 * sux + inv11 * svx + inv12 * sx;
+        c = inv20 * sux + inv21 * svx + inv22 * sx;
+
+        d = inv00 * suy + inv01 * svy + inv02 * sy;
+        e = inv10 * suy + inv11 * svy + inv12 * sy;
+        f = inv20 * suy + inv21 * svy + inv22 * sy;
+      }
     }
-
-    // Solve for X coefficients: x = a*u + b*v + c
-    const a = (p1.x * (p2.v - p3.v) + p2.x * (p3.v - p1.v) + p3.x * (p1.v - p2.v)) / det;
-    const b = (p1.x * (p3.u - p2.u) + p2.x * (p1.u - p3.u) + p3.x * (p2.u - p1.u)) / det;
-    const c = (p1.x * (p2.u * p3.v - p3.u * p2.v) + p2.x * (p3.u * p1.v - p1.u * p3.v) + p3.x * (p1.u * p2.v - p2.u * p1.v)) / det;
-
-    // Solve for Y coefficients: y = d*u + e*v + f
-    const d = (p1.y * (p2.v - p3.v) + p2.y * (p3.v - p1.v) + p3.y * (p1.v - p2.v)) / det;
-    const e = (p1.y * (p3.u - p2.u) + p2.y * (p1.u - p3.u) + p3.y * (p2.u - p1.u)) / det;
-    const f = (p1.y * (p2.u * p3.v - p3.u * p2.v) + p2.y * (p3.u * p1.v - p1.u * p3.v) + p3.y * (p1.u * p2.v - p2.u * p1.v)) / det;
 
     const matrix = { a, b, c, d, e, f };
 

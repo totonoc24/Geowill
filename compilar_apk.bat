@@ -7,12 +7,9 @@ echo.
 echo Compilando y firmando el archivo APK de Android (Geowill v2.0)...
 echo.
 
-set PYTHON_EXE="C:\Users\Dell\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
-
-if exist %PYTHON_EXE% (
-    %PYTHON_EXE% build_apk.py
-) else if exist "C:\Users\Dell\AppData\Local\Programs\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" (
-    "C:\Users\Dell\AppData\Local\Programs\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" build_apk.py
+where py >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    py build_apk.py
 ) else (
     python build_apk.py
 )

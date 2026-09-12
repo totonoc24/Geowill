@@ -382,62 +382,249 @@
 
           <!-- Calibration Wizard Container -->
           <div id="pdf-wizard-content" class="georef-container hidden">
+            <!-- Step & Point Indicator Bar -->
             <div class="georef-step-indicator">
               <div class="gcp-pill-list">
-                <div class="gcp-pill active" data-gcp="0">
-                  <span>Punto 1</span>
-                </div>
-                <div class="gcp-pill" data-gcp="1">
-                  <span>Punto 2</span>
-                </div>
-                <div class="gcp-pill" data-gcp="2">
-                  <span>Punto 3</span>
-                </div>
+                <button type="button" class="gcp-pill active" data-gcp="0" id="pill-gcp-0">
+                  <span>Punto 1</span> <span class="pill-badge" id="badge-gcp-0">⚠️</span>
+                </button>
+                <button type="button" class="gcp-pill" data-gcp="1" id="pill-gcp-1">
+                  <span>Punto 2</span> <span class="pill-badge" id="badge-gcp-1">⚠️</span>
+                </button>
+                <button type="button" class="gcp-pill" data-gcp="2" id="pill-gcp-2">
+                  <span>Punto 3</span> <span class="pill-badge" id="badge-gcp-2">⚠️</span>
+                </button>
               </div>
-              <button class="btn btn-sm btn-success" id="btn-apply-georef">Aplicar al Mapa</button>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-open-gcp-table" title="Ver y editar los 3 puntos en una sola tabla">
+                  📋 Tabla 3 Puntos
+                </button>
+                <button type="button" class="btn btn-sm btn-success" id="btn-apply-georef">
+                  🚀 Aplicar al Mapa
+                </button>
+              </div>
             </div>
 
-            <!-- PDF Canvas Viewport -->
-            <div class="pdf-canvas-viewport">
-              <div style="position: relative; display: inline-block;">
+            <!-- PDF Canvas Viewport with Interactive Pan & Zoom Controls -->
+            <div class="pdf-canvas-viewport" id="pdf-canvas-viewport">
+              <div id="pdf-canvas-wrapper" style="position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform;">
                 <canvas id="pdf-render-canvas"></canvas>
                 <div class="canvas-crosshair-layer" id="gcp-crosshair-layer"></div>
               </div>
-            </div>
 
-            <!-- GCP Coordinates Entry Panel with CRS Selector -->
-            <div class="georef-bottom-panel">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <span style="font-size: 12px; font-weight: 700; color: #38bdf8;" id="gcp-pixel-info">Toque en el plano para definir pixel</span>
-                <button class="btn btn-sm btn-secondary" id="btn-gcp-use-gps" style="color: #38bdf8; border-color: rgba(56,189,248,0.3);">
-                  📍 Usar mi GPS
-                </button>
+              <!-- Floating Zoom & Navigation Toolbar -->
+              <div class="pdf-zoom-controls">
+                <button type="button" class="btn-pdf-zoom" id="btn-pdf-zoom-in" title="Acercar (Zoom In)">➕</button>
+                <span class="pdf-zoom-badge" id="pdf-zoom-badge" title="Nivel de Zoom">100%</span>
+                <button type="button" class="btn-pdf-zoom" id="btn-pdf-zoom-out" title="Alejar (Zoom Out)">➖</button>
+                <button type="button" class="btn-pdf-zoom" id="btn-pdf-zoom-fit" title="Ajustar a Pantalla (Ver todo el plano)">⛶</button>
+                <button type="button" class="btn-pdf-zoom" id="btn-pdf-zoom-reset" title="Escala Real 100%">1:1</button>
               </div>
 
-              <!-- CRS Selector for Colombia (WGS84 / EPSG:3116 / EPSG:9377) -->
-              <div style="margin-bottom: 8px;">
-                <label class="form-label" style="font-size: 10px; color: #94a3b8; margin-bottom: 2px;">Sistema de Coordenadas del Plano:</label>
-                <select class="form-select" id="wizard-crs-select" style="padding: 6px 8px; font-size: 11px; border-color: #06b6d4; height: 32px;">
-                  <option value="wgs84">🌐 WGS84 (Latitud / Longitud en Grados o DMS)</option>
-                  <option value="epsg3116">🇨🇴 EPSG:3116 (MAGNA-SIRGAS / Bogotá - Norte / Este en metros)</option>
+              <!-- Floating Interaction Hint -->
+              <div class="pdf-viewport-hint" id="pdf-viewport-hint">
+                <span>💡 Toque para fijar punto • Arrastre para mover • Rueda o 2 dedos para zoom</span>
+              </div>
+            </div>
+
+            <!-- GCP Coordinates Entry Panel with CRS Selector & Quick Actions -->
+            <div class="georef-bottom-panel">
+              <!-- Point Status & Quick Source Actions -->
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="gcp-active-title" style="font-size: 13px; font-weight: 800; color: #38bdf8; background: rgba(6,182,212,0.15); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(6,182,212,0.3);">
+                    Punto 1 (P1)
+                  </span>
+                  <span style="font-size: 11px; color: #94a3b8;" id="gcp-pixel-info">Toque en el plano para definir pixel</span>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-gcp-use-gps" style="color: #38bdf8; border-color: rgba(56,189,248,0.3); font-size: 11px; padding: 4px 8px;" title="Asignar coordenadas de mi ubicación GPS actual">
+                    📍 Mi GPS
+                  </button>
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-gcp-pick-map" style="color: #10b981; border-color: rgba(16,185,129,0.3); font-size: 11px; padding: 4px 8px;" title="Tocar en el mapa satelital para capturar la coordenada">
+                    🗺️ Marcar en Mapa
+                  </button>
+                </div>
+              </div>
+
+              <!-- CRS Selector for Coordinates Entry (WGS84 / EPSG:3116 / EPSG:9377) -->
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <label class="form-label" style="font-size: 11px; color: #94a3b8; margin-bottom: 0;">Sistema de Coordenadas:</label>
+                  <span style="font-size: 10px; color: #38bdf8;" id="crs-format-hint">Grados decimales o DMS</span>
+                </div>
+                <select class="form-select" id="wizard-crs-select" style="padding: 5px 8px; font-size: 11px; border-color: #06b6d4; height: 30px;">
+                  <option value="wgs84">🌐 WGS84 (Latitud / Longitud en Grados ej. 4.609712 ó 4°36'35"N)</option>
+                  <option value="epsg3116">🇨🇴 EPSG:3116 (MAGNA-SIRGAS Bogotá - Norte / Este en metros)</option>
                   <option value="epsg9377">🇨🇴 EPSG:9377 (MAGNA-SIRGAS Origen Nacional - Norte / Este en metros)</option>
                 </select>
               </div>
 
+              <!-- Real Ground Coordinates Inputs -->
               <div class="gcp-inputs-grid">
                 <div>
-                  <label class="form-label" id="lbl-gcp-c1" style="margin-bottom: 2px;">Latitud / Norte (Y):</label>
-                  <input type="text" class="form-input" id="gcp-lat-input" placeholder="ej. 4.609712 ó 1000000">
+                  <label class="form-label" id="lbl-gcp-c1" style="font-size: 11px; margin-bottom: 2px; color: #f8fafc; font-weight: 700;">Latitud / Norte (Y):</label>
+                  <input type="text" class="form-input" id="gcp-lat-input" placeholder="ej. 4.609712 ó 1000000.00" autocomplete="off" style="font-size: 12px; padding: 7px 10px; font-weight: 600;">
                 </div>
                 <div>
-                  <label class="form-label" id="lbl-gcp-c2" style="margin-bottom: 2px;">Longitud / Este (X):</label>
-                  <input type="text" class="form-input" id="gcp-lng-input" placeholder="ej. -74.081734 ó 1000000">
+                  <label class="form-label" id="lbl-gcp-c2" style="font-size: 11px; margin-bottom: 2px; color: #f8fafc; font-weight: 700;">Longitud / Este (X):</label>
+                  <input type="text" class="form-input" id="gcp-lng-input" placeholder="ej. -74.081734 ó 1000000.00" autocomplete="off" style="font-size: 12px; padding: 7px 10px; font-weight: 600;">
+                </div>
+              </div>
+
+              <!-- Live Validation Status & Next/Prev Controls -->
+              <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 2px;">
+                <div id="gcp-coord-status-box" style="font-size: 11px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;">
+                  <span>⚠️ Ingrese las coordenadas reales de P1</span>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-gcp-prev" style="font-size: 11px; padding: 4px 10px;">
+                    ⬅️ Ant.
+                  </button>
+                  <button type="button" class="btn btn-sm btn-primary" id="btn-gcp-next" style="font-size: 11px; padding: 4px 12px; font-weight: 700;">
+                    Sig. Punto ➡️
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ====================================================================
+         Modal: Full 3-Point Calibration Coordinates Table
+         ==================================================================== -->
+    <div class="modal-backdrop" id="modal-gcp-table-backdrop" style="z-index: 2200;">
+      <div class="bottom-sheet" style="max-height: 90vh;">
+        <div class="sheet-handle-bar"></div>
+        <div class="sheet-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">📐</span>
+            <div>
+              <h3 class="sheet-title">Tabla de Coordenadas de los 3 Puntos</h3>
+              <div style="font-size: 11px; color: #94a3b8;">Ingrese o edite las coordenadas verdaderas de campo</div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-secondary" id="btn-close-gcp-table">✕</button>
+        </div>
+
+        <div class="sheet-body" style="padding: 14px 16px; overflow-y: auto;">
+          <!-- CRS Selector in Table Modal -->
+          <div style="margin-bottom: 12px; background: rgba(15,23,42,0.6); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(56,189,248,0.2);">
+            <label class="form-label" style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">Sistema de Coordenadas de la Tabla:</label>
+            <select class="form-select" id="table-crs-select" style="padding: 6px 8px; font-size: 11px; border-color: #06b6d4; height: 32px;">
+              <option value="wgs84">🌐 WGS84 (Latitud / Longitud en Grados o DMS)</option>
+              <option value="epsg3116">🇨🇴 EPSG:3116 (MAGNA-SIRGAS Bogotá - Norte / Este en metros)</option>
+              <option value="epsg9377">🇨🇴 EPSG:9377 (MAGNA-SIRGAS Origen Nacional - Norte / Este en metros)</option>
+            </select>
+          </div>
+
+          <!-- Cards for P1, P2, P3 -->
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Punto 1 Card -->
+            <div class="gcp-table-card" id="table-card-p1" style="background: rgba(30,41,59,0.7); border: 1px solid rgba(6,182,212,0.4); border-radius: 10px; padding: 10px 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 11px; font-weight: 800; background: rgba(6,182,212,0.25); color: #38bdf8; padding: 2px 8px; border-radius: 12px;">P1</span>
+                  <span style="font-weight: 700; font-size: 13px; color: #f8fafc;">Punto 1</span>
+                  <span class="gcp-table-pixel-badge" id="table-p1-pixel" style="font-size: 10px; color: #94a3b8;">Pixel: Sin fijar</span>
+                </div>
+                <div style="display: flex; gap: 4px;">
+                  <button type="button" class="btn btn-sm btn-secondary" onclick="window.app.assignGpsToGcp(0)" style="font-size: 10px; padding: 3px 6px; color: #38bdf8;">📍 GPS</button>
+                  <button type="button" class="btn btn-sm btn-secondary" onclick="window.app.startMapPickForGcp(0)" style="font-size: 10px; padding: 3px 6px; color: #10b981;">🗺️ Mapa</button>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                  <label class="form-label" style="font-size: 10px; margin-bottom: 2px;" id="lbl-table-p1-c1">Latitud / Norte (Y):</label>
+                  <input type="text" class="form-input" id="table-p1-c1" placeholder="ej. 4.609712" style="font-size: 12px; padding: 6px 8px;">
+                </div>
+                <div>
+                  <label class="form-label" style="font-size: 10px; margin-bottom: 2px;" id="lbl-table-p1-c2">Longitud / Este (X):</label>
+                  <input type="text" class="form-input" id="table-p1-c2" placeholder="ej. -74.081734" style="font-size: 12px; padding: 6px 8px;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Punto 2 Card -->
+            <div class="gcp-table-card" id="table-card-p2" style="background: rgba(30,41,59,0.7); border: 1px solid rgba(245,158,11,0.4); border-radius: 10px; padding: 10px 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 11px; font-weight: 800; background: rgba(245,158,11,0.25); color: #fbbf24; padding: 2px 8px; border-radius: 12px;">P2</span>
+                  <span style="font-weight: 700; font-size: 13px; color: #f8fafc;">Punto 2</span>
+                  <span class="gcp-table-pixel-badge" id="table-p2-pixel" style="font-size: 10px; color: #94a3b8;">Pixel: Sin fijar</span>
+                </div>
+                <div style="display: flex; gap: 4px;">
+                  <button type="button" class="btn btn-sm btn-secondary" onclick="window.app.assignGpsToGcp(1)" style="font-size: 10px; padding: 3px 6px; color: #fbbf24;">📍 GPS</button>
+                  <button type="button" class="btn btn-sm btn-secondary" onclick="window.app.startMapPickForGcp(1)" style="font-size: 10px; padding: 3px 6px; color: #10b981;">🗺️ Mapa</button>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                  <label class="form-label" style="font-size: 10px; margin-bottom: 2px;" id="lbl-table-p2-c1">Latitud / Norte (Y):</label>
+                  <input type="text" class="form-input" id="table-p2-c1" placeholder="ej. 4.609712" style="font-size: 12px; padding: 6px 8px;">
+                </div>
+                <div>
+                  <label class="form-label" style="font-size: 10px; margin-bottom: 2px;" id="lbl-table-p2-c2">Longitud / Este (X):</label>
+                  <input type="text" class="form-input" id="table-p2-c2" placeholder="ej. -74.081734" style="font-size: 12px; padding: 6px 8px;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Punto 3 Card -->
+            <div class="gcp-table-card" id="table-card-p3" style="background: rgba(30,41,59,0.7); border: 1px solid rgba(16,185,129,0.4); border-radius: 10px; padding: 10px 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 11px; font-weight: 800; background: rgba(16,185,129,0.25); color: #34d399; padding: 2px 8px; border-radius: 12px;">P3</span>
+                  <span style="font-weight: 700; font-size: 13px; color: #f8fafc;">Punto 3</span>
+                  <span class="gcp-table-pixel-badge" id="table-p3-pixel" style="font-size: 10px; color: #94a3b8;">Pixel: Sin fijar</span>
+                </div>
+                <div style="display: flex; gap: 4px;">
+                  <button type="button" class="btn btn-sm btn-secondary" onclick="window.app.assignGpsToGcp(2)" style="font-size: 10px; padding: 3px 6px; color: #34d399;">📍 GPS</button>
+                  <button type="button" class="btn btn-sm btn-secondary" onclick="window.app.startMapPickForGcp(2)" style="font-size: 10px; padding: 3px 6px; color: #10b981;">🗺️ Mapa</button>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                  <label class="form-label" style="font-size: 10px; margin-bottom: 2px;" id="lbl-table-p3-c1">Latitud / Norte (Y):</label>
+                  <input type="text" class="form-input" id="table-p3-c1" placeholder="ej. 4.609712" style="font-size: 12px; padding: 6px 8px;">
+                </div>
+                <div>
+                  <label class="form-label" style="font-size: 10px; margin-bottom: 2px;" id="lbl-table-p3-c2">Longitud / Este (X):</label>
+                  <input type="text" class="form-input" id="table-p3-c2" placeholder="ej. -74.081734" style="font-size: 12px; padding: 6px 8px;">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Action Buttons in Table Modal -->
+          <div style="display: flex; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary flex-1" id="btn-save-gcp-table" style="flex: 1; padding: 12px;">
+              💾 Guardar y Volver al Plano
+            </button>
+            <button type="button" class="btn btn-success flex-1" id="btn-apply-from-gcp-table" style="flex: 1; padding: 12px; font-weight: 700;">
+              🚀 Aplicar al Mapa
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         Map Picker Mode Floating Banner
+         ==================================================================== -->
+    <div id="banner-gcp-map-picker" style="display: none; position: fixed; top: calc(var(--safe-top) + 12px); left: 12px; right: 12px; z-index: 3000; background: rgba(15,23,42,0.95); backdrop-filter: blur(10px); border: 2px solid #10b981; border-radius: 12px; padding: 10px 14px; box-shadow: 0 8px 30px rgba(0,0,0,0.8); align-items: center; justify-content: space-between; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+        <span style="font-size: 20px;">🗺️</span>
+        <div>
+          <div style="font-size: 12px; font-weight: 800; color: #34d399;" id="map-picker-title">Modo Selección de Coordenada</div>
+          <div style="font-size: 11px; color: #cbd5e1;">Toque en el mapa satelital para capturar la coordenada real</div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-sm btn-secondary" id="btn-cancel-map-picker" style="padding: 6px 12px; font-size: 11px; border-color: rgba(239,68,68,0.5); color: #f87171;">
+        Cancelar
+      </button>
     </div>
 
     <!-- ====================================================================
