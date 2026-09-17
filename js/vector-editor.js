@@ -323,11 +323,14 @@ class VectorEditor {
     const color = props.color || '#3b82f6';
 
     if (feature.type === 'Point') {
+      // Larger hit area (36x36) with visible pin (14x14) centered inside for easy mobile tapping
       const icon = L.divIcon({
         className: 'custom-point-pin',
-        html: `<div style="background-color: ${color}; width: 14px; height: 14px; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.6);"></div>`,
-        iconSize: [14, 14],
-        iconAnchor: [7, 7]
+        html: `<div style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                 <div style="background-color: ${color}; width: 16px; height: 16px; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.7), 0 0 0 3px ${color}44;"></div>
+               </div>`,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
       });
       layer = L.marker(feature.coordinates, { pane: 'markerPaneCustom', icon });
     } else if (feature.type === 'LineString') {
@@ -350,55 +353,120 @@ class VectorEditor {
     if (layer) {
       layer.featureData = feature;
       
-      // Popup Content
-      let metricsHtml = '';
-      if (feature.type === 'LineString' && props.length) {
-        metricsHtml = `<div><b>Longitud:</b> ${props.length > 1000 ? (props.length/1000).toFixed(3) + ' km' : props.length.toFixed(1) + ' m'}</div>`;
-      } else if (feature.type === 'Polygon' && props.area) {
-        metricsHtml = `<div><b>Área:</b> ${(props.area/10000).toFixed(2)} ha (${props.area.toFixed(1)} m²)</div>`;
+      // Build Popup Content with rich feature information
+      const popupHtml = this._buildFeaturePopupHtml(feature);
+
+      layer.bindPopup(popupHtml, {
+        maxWidth: 280,
+        minWidth: 200,
+        className: 'geowill-popup'
+      });
+      this.featureLayerGroup.addLayer(layer);
+    }
+  }
+
+  /**
+   * Builds rich HTML popup content for a feature, showing all available info
+   * including coordinates, altitude, description, category, metrics, and photos.
+   * Works for manually created features AND imported KML features.
+   */
+  _buildFeaturePopupHtml(feature) {
+    const props = feature.properties || {};
+    const safeName = (props.name || 'Entidad').replace(/'/g, "\\'");
+
+    // --- Type Icon & Label ---
+    const typeIcon = feature.type === 'Point' ? '📍' : feature.type === 'LineString' ? '📏' : '⬡';
+    const typeLabel = feature.type === 'Point' ? 'Punto' : feature.type === 'LineString' ? 'Línea' : 'Polígono';
+
+    // --- Coordinate Info (for Points) ---
+    let coordsHtml = '';
+    if (feature.type === 'Point' && Array.isArray(feature.coordinates)) {
+      const lat = parseFloat(feature.coordinates[0]);
+      const lng = parseFloat(feature.coordinates[1]);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        coordsHtml = `
+          <div style="background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-size: 11px; font-family: 'Courier New', monospace;">
+            <div style="color: #94a3b8; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px;">Coordenadas WGS84</div>
+            <div style="color: #e2e8f0;"><b>Lat:</b> ${lat.toFixed(7)}°</div>
+            <div style="color: #e2e8f0;"><b>Lng:</b> ${lng.toFixed(7)}°</div>
+            ${(props.altitude && props.altitude !== 0) ? `<div style="color: #fbbf24;"><b>Alt:</b> ${parseFloat(props.altitude).toFixed(1)} m</div>` : ''}
+          </div>`;
       }
+    }
 
-      let photoThumb = '';
-      if (props.photos && props.photos.length > 0) {
-        const firstPhoto = props.photos[0];
-        const safeName = (props.name || 'Entidad').replace(/'/g, "\\'");
-        const countBadge = props.photos.length > 1 
-          ? `<span style="position: absolute; top: 6px; right: 6px; background: rgba(15, 23, 42, 0.85); color: #38bdf8; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.4);">📸 1 de ${props.photos.length}</span>` 
-          : '';
+    // --- Metrics (Lines & Polygons) ---
+    let metricsHtml = '';
+    if (feature.type === 'LineString' && props.length) {
+      const lengthDisplay = props.length > 1000 
+        ? (props.length / 1000).toFixed(3) + ' km' 
+        : props.length.toFixed(1) + ' m';
+      metricsHtml = `
+        <div style="background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-size: 11px;">
+          <div style="color: #e2e8f0;">📏 <b>Longitud:</b> ${lengthDisplay}</div>
+        </div>`;
+    } else if (feature.type === 'Polygon' && props.area) {
+      const ha = (props.area / 10000).toFixed(2);
+      const sqm = props.area.toFixed(1);
+      metricsHtml = `
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-size: 11px;">
+          <div style="color: #e2e8f0;">📐 <b>Área:</b> ${ha} ha (${sqm} m²)</div>
+          ${props.perimeter ? `<div style="color: #e2e8f0;">📏 <b>Perímetro:</b> ${props.perimeter.toFixed(1)} m</div>` : ''}
+        </div>`;
+    }
 
-        photoThumb = `
-          <div style="margin-top: 8px; position: relative; cursor: pointer; border-radius: 8px; overflow: hidden; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 4px 12px rgba(0,0,0,0.3);" onclick="window.app.openPhotoViewer('${firstPhoto}', '${safeName}')">
-            <img src="${firstPhoto}" style="width: 100%; max-height: 120px; object-fit: cover; display: block;">
-            ${countBadge}
-            <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(15,23,42,0.9), transparent); padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px; color: #38bdf8; font-size: 10px; font-weight: 700;">
-              <span>🔍</span> <span>Toca para ver en Pantalla Completa</span>
-            </div>
-          </div>
-        `;
-      }
+    // --- Description ---
+    let descHtml = '';
+    if (props.description && props.description.trim()) {
+      const descText = props.description.length > 200 
+        ? props.description.substring(0, 200) + '...' 
+        : props.description;
+      descHtml = `<p style="font-size: 11px; margin: 6px 0; color: #cbd5e1; line-height: 1.4; border-left: 2px solid rgba(148, 163, 184, 0.3); padding-left: 8px;">${descText}</p>`;
+    }
 
-      const popupHtml = `
-        <div class="popup-feature-card">
-          <h4>${props.name || 'Entidad'}</h4>
-          <div class="popup-feature-meta">${props.category || 'General'}</div>
-          ${props.description ? `<p style="font-size:12px; margin-bottom:6px; color:#cbd5e1;">${props.description}</p>` : ''}
-          ${metricsHtml}
-          ${photoThumb}
-          <div class="popup-actions-row" style="display: flex; flex-direction: column; gap: 5px; margin-top: 8px;">
-            <button class="btn btn-sm" onclick="window.app.startNavigationToFeature('${feature.id}')" style="background: rgba(16,185,129,0.25); color: #10b981; border: 1px solid #10b981; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px;">
-              <span>🎯</span> <span>Guiar / Navegar hacia este Punto</span>
-            </button>
-            <div style="display: flex; gap: 6px;">
-              <button class="btn btn-sm btn-primary flex-1" style="flex:1;" onclick="window.app.editFeature('${feature.id}')">Editar / Ficha</button>
-              <button class="btn btn-sm btn-danger flex-1" style="flex:1;" onclick="window.app.deleteFeatureConfirm('${feature.id}')">Eliminar</button>
-            </div>
+    // --- Photo Thumbnail ---
+    let photoThumb = '';
+    if (props.photos && props.photos.length > 0) {
+      const firstPhoto = props.photos[0];
+      const countBadge = props.photos.length > 1 
+        ? `<span style="position: absolute; top: 6px; right: 6px; background: rgba(15, 23, 42, 0.85); color: #38bdf8; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.4);">📸 1 de ${props.photos.length}</span>` 
+        : '';
+
+      photoThumb = `
+        <div style="margin-top: 8px; position: relative; cursor: pointer; border-radius: 8px; overflow: hidden; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 4px 12px rgba(0,0,0,0.3);" onclick="window.app.openPhotoViewer('${firstPhoto}', '${safeName}')">
+          <img src="${firstPhoto}" style="width: 100%; max-height: 120px; object-fit: cover; display: block;">
+          ${countBadge}
+          <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(15,23,42,0.9), transparent); padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px; color: #38bdf8; font-size: 10px; font-weight: 700;">
+            <span>🔍</span> <span>Toca para ver en Pantalla Completa</span>
           </div>
         </div>
       `;
-
-      layer.bindPopup(popupHtml);
-      this.featureLayerGroup.addLayer(layer);
     }
+
+    return `
+      <div class="popup-feature-card" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+          <span style="font-size: 16px;">${typeIcon}</span>
+          <h4 style="margin: 0; font-size: 14px; font-weight: 700; color: #f1f5f9; flex: 1;">${props.name || 'Entidad'}</h4>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+          <span style="background: ${props.color || '#3b82f6'}33; color: ${props.color || '#3b82f6'}; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; border: 1px solid ${props.color || '#3b82f6'}55;">${props.category || 'General'}</span>
+          <span style="color: #64748b; font-size: 10px;">${typeLabel}</span>
+        </div>
+        ${descHtml}
+        ${coordsHtml}
+        ${metricsHtml}
+        ${photoThumb}
+        <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 8px;">
+          <button class="btn btn-sm" onclick="window.app.startNavigationToFeature('${feature.id}')" style="background: rgba(16,185,129,0.25); color: #10b981; border: 1px solid #10b981; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer;">
+            <span>🎯</span> <span>Guiar / Navegar hacia este Punto</span>
+          </button>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-sm btn-primary flex-1" style="flex:1; border-radius: 6px; cursor: pointer;" onclick="window.app.editFeature('${feature.id}')">Editar / Ficha</button>
+            <button class="btn btn-sm btn-danger flex-1" style="flex:1; border-radius: 6px; cursor: pointer;" onclick="window.app.deleteFeatureConfirm('${feature.id}')">Eliminar</button>
+          </div>
+        </div>
+      </div>
+    `;
   }
 }
 
