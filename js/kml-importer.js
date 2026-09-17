@@ -122,6 +122,10 @@ class KmlImporter {
     // Style Color
     let color = this._resolvePlacemarkColor(pm, stylesMap);
 
+    // ExtendedData attributes (Google Earth style: Data, SimpleData, SchemaData)
+    const rawDesc = descNode ? descNode.textContent : '';
+    const extendedData = this._extractExtendedData(pm, rawDesc);
+
     // 1. Check for Point
     const pointNodes = pm.getElementsByTagName('Point');
     for (let p = 0; p < pointNodes.length; p++) {
@@ -139,7 +143,8 @@ class KmlImporter {
               description: description,
               altitude: pt.alt || 0,
               color: color || '#f43f5e',
-              photos: photos
+              photos: photos,
+              extendedData: extendedData
             }
           });
         }
@@ -164,7 +169,8 @@ class KmlImporter {
               description: description,
               length: lengthMeters,
               color: color || '#06b6d4',
-              photos: photos
+              photos: photos,
+              extendedData: extendedData
             }
           });
         }
@@ -193,7 +199,8 @@ class KmlImporter {
               description: description,
               area: areaSqMeters,
               color: color || '#10b981',
-              photos: photos
+              photos: photos,
+              extendedData: extendedData
             }
           });
         }
@@ -361,6 +368,74 @@ class KmlImporter {
       total += (lon2 - lon1) * (2 + Math.sin(lat1) + Math.sin(lat2));
     }
     return Math.abs((total * R * R) / 2.0);
+  }
+
+  /**
+   * Extracts all ExtendedData fields from a Placemark node.
+   * Supports: <Data>, <SimpleData> within <SchemaData>, and plain <SimpleField>.
+   * Also extracts key-value pairs from HTML tables inside <description> (ArcGIS / QGIS / Google Earth).
+   * Returns an object with { fieldName: value } pairs, identical to Google Earth.
+   */
+  _extractExtendedData(pm, descRaw = '') {
+    const data = {};
+    if (!pm) return data;
+
+    const getNodes = (parent, tag) => {
+      if (!parent) return [];
+      let nodes = parent.getElementsByTagName(tag);
+      if (!nodes || nodes.length === 0) nodes = parent.getElementsByTagName('kml:' + tag);
+      if ((!nodes || nodes.length === 0) && parent.getElementsByTagNameNS) {
+        nodes = parent.getElementsByTagNameNS('*', tag);
+      }
+      return Array.from(nodes || []);
+    };
+
+    const extDataNodes = getNodes(pm, 'ExtendedData');
+    if (extDataNodes.length > 0) {
+      const extDataNode = extDataNodes[0];
+
+      // Format 1: <Data name="key"><value>val</value></Data>
+      const dataNodes = getNodes(extDataNode, 'Data');
+      for (let i = 0; i < dataNodes.length; i++) {
+        const key = dataNodes[i].getAttribute('name');
+        if (!key) continue;
+        const valNode = getNodes(dataNodes[i], 'value')[0];
+        const displayNode = getNodes(dataNodes[i], 'displayName')[0];
+        const displayKey = displayNode && displayNode.textContent.trim() ? displayNode.textContent.trim() : key;
+        data[displayKey] = valNode ? valNode.textContent.trim() : '';
+      }
+
+      // Format 2: <SchemaData><SimpleData name="key">val</SimpleData></SchemaData>
+      const simpleDataNodes = getNodes(extDataNode, 'SimpleData');
+      for (let i = 0; i < simpleDataNodes.length; i++) {
+        const key = simpleDataNodes[i].getAttribute('name');
+        if (!key) continue;
+        data[key] = simpleDataNodes[i].textContent.trim();
+      }
+    }
+
+    // Format 3: If no ExtendedData found or table present in description, extract HTML <table> rows
+    if (descRaw && descRaw.includes('<table')) {
+      try {
+        const temp = document.createElement('div');
+        temp.innerHTML = descRaw;
+        const rows = temp.getElementsByTagName('tr');
+        for (let i = 0; i < rows.length; i++) {
+          const cells = rows[i].children;
+          if (cells.length >= 2) {
+            const k = cells[0].textContent.trim();
+            const v = cells[1].textContent.trim();
+            if (k && !data[k]) {
+              data[k] = v;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Error parsing HTML table from description:', e);
+      }
+    }
+
+    return data;
   }
 
   _extractPhotosFromDescription(desc) {

@@ -220,6 +220,42 @@
           <circle cx="12" cy="10" r="3"></circle>
         </svg>
       </button>
+
+      <button class="side-btn" id="btn-info-mode" title="Información del Punto (estilo Google Earth)" style="background: rgba(251, 191, 36, 0.15); border-color: rgba(251, 191, 36, 0.4); color: #fbbf24;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- ====================================================================
+         Modal: Feature Info Panel (Google Earth Style Attribute Table)
+         ==================================================================== -->
+    <div class="modal-backdrop" id="modal-info-backdrop" style="z-index: 2100;">
+      <div class="bottom-sheet" style="max-height: 85vh;">
+        <div class="sheet-handle-bar"></div>
+        <div class="sheet-header">
+          <h3 class="sheet-title" id="info-modal-title" style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 18px;">📋</span>
+            <span>Información del Elemento</span>
+          </h3>
+          <button class="btn btn-sm btn-secondary" onclick="window.app.closeInfoModal()">✕</button>
+        </div>
+        <div class="sheet-body" id="info-modal-body" style="padding-bottom: 16px;">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+        <div class="sheet-footer" style="gap: 8px;">
+          <button class="btn btn-secondary" onclick="window.app.closeInfoModal()">Cerrar</button>
+          <button class="btn btn-primary" id="btn-info-edit" style="display: flex; align-items: center; gap: 6px;">
+            <span>✏️</span> Editar / Ficha
+          </button>
+          <button class="btn" id="btn-info-navigate" style="background: rgba(16,185,129,0.25); color: #10b981; border: 1px solid #10b981; display: flex; align-items: center; gap: 6px;">
+            <span>🎯</span> Navegar
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- PDF Opacity Slider Widget (visible when PDF is loaded) -->

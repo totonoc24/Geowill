@@ -352,6 +352,15 @@ class VectorEditor {
 
     if (layer) {
       layer.featureData = feature;
+
+      // Click listener: if in Info Mode, open Google Earth info sheet directly
+      layer.on('click', (e) => {
+        if (window.app && window.app.isInfoMode) {
+          L.DomEvent.stopPropagation(e);
+          layer.closePopup();
+          window.app.showFeatureInfo(feature.id);
+        }
+      });
       
       // Build Popup Content with rich feature information
       const popupHtml = this._buildFeaturePopupHtml(feature);
@@ -442,6 +451,32 @@ class VectorEditor {
       `;
     }
 
+    // --- ExtendedData / Google Earth Attributes Preview ---
+    let extDataHtml = '';
+    const hasExtData = props.extendedData && typeof props.extendedData === 'object' && Object.keys(props.extendedData).length > 0;
+    if (hasExtData) {
+      const keys = Object.keys(props.extendedData);
+      const previewRows = keys.slice(0, 4).map(k => `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <td style="color: #38bdf8; font-weight: 600; padding: 2px 4px; font-size: 10px; width: 45%;">${k}</td>
+          <td style="color: #f1f5f9; padding: 2px 4px; font-size: 10px; font-family: monospace;">${props.extendedData[k] || '-'}</td>
+        </tr>
+      `).join('');
+
+      extDataHtml = `
+        <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(251, 191, 36, 0.35); border-radius: 6px; padding: 5px 8px; margin: 6px 0;">
+          <div style="font-size: 10px; color: #fbbf24; font-weight: 700; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center;">
+            <span>📋 Atributos KML (${keys.length})</span>
+            <span style="color: #38bdf8; font-size: 9px; cursor: pointer; text-decoration: underline;" onclick="window.app.showFeatureInfo('${feature.id}')">Ver ficha ↗</span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            ${previewRows}
+          </table>
+          ${keys.length > 4 ? `<div style="font-size: 9px; color: #94a3b8; text-align: center; margin-top: 3px;">+ ${keys.length - 4} campos más...</div>` : ''}
+        </div>
+      `;
+    }
+
     return `
       <div class="popup-feature-card" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
@@ -453,10 +488,14 @@ class VectorEditor {
           <span style="color: #64748b; font-size: 10px;">${typeLabel}</span>
         </div>
         ${descHtml}
+        ${extDataHtml}
         ${coordsHtml}
         ${metricsHtml}
         ${photoThumb}
         <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 8px;">
+          <button class="btn btn-sm" onclick="window.app.showFeatureInfo('${feature.id}')" style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid #fbbf24; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer;">
+            <span>ℹ️</span> <span>Ver Información (Google Earth)</span>
+          </button>
           <button class="btn btn-sm" onclick="window.app.startNavigationToFeature('${feature.id}')" style="background: rgba(16,185,129,0.25); color: #10b981; border: 1px solid #10b981; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer;">
             <span>🎯</span> <span>Guiar / Navegar hacia este Punto</span>
           </button>

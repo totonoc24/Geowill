@@ -27,6 +27,10 @@ class GeoPlanApp {
     // Coordinate Systems State
     this.currentHudCrs = 'wgs84'; // 'wgs84', 'epsg3116', 'epsg9377'
     this.selectedWizardCrs = 'wgs84'; // 'wgs84', 'epsg3116', 'epsg9377'
+
+    // Google Earth Attribute Inspector & Info Mode State
+    this.isInfoMode = false;
+    this.currentInfoFeature = null;
   }
 
   async init() {
@@ -177,6 +181,18 @@ class GeoPlanApp {
 
     document.getElementById('btn-quick-gps-point')?.addEventListener('click', () => {
       window.vectorEditor.addPointAtCurrentGps();
+    });
+
+    // Toggle Google Earth Info Mode
+    document.getElementById('btn-info-mode')?.addEventListener('click', (e) => {
+      this.toggleInfoMode(e.currentTarget);
+    });
+
+    // Close Info Modal on backdrop click
+    document.getElementById('modal-info-backdrop')?.addEventListener('click', (e) => {
+      if (e.target.id === 'modal-info-backdrop') {
+        this.closeInfoModal();
+      }
     });
 
     // Tap on HUD Coordinates to cycle CRS (WGS84 -> EPSG:3116 -> EPSG:9377)
@@ -1351,6 +1367,275 @@ class GeoPlanApp {
       await window.vectorEditor.loadProjectFeatures();
       this.showToast('Entidad eliminada', 'info');
     }
+  }
+
+  /* ==========================================================================
+     Google Earth Feature Info & Attribute Inspector
+     ========================================================================== */
+  toggleInfoMode(btnElement) {
+    this.isInfoMode = !this.isInfoMode;
+    const btn = btnElement || document.getElementById('btn-info-mode');
+    if (this.isInfoMode) {
+      btn?.classList.add('active');
+      btn?.style.setProperty('background', 'rgba(251, 191, 36, 0.45)');
+      btn?.style.setProperty('box-shadow', '0 0 12px rgba(251, 191, 36, 0.8)');
+      this.showToast('ℹ️ Modo Información activado: toca cualquier punto para ver sus datos', 'info');
+      window.vectorEditor?.setMode('none');
+    } else {
+      btn?.classList.remove('active');
+      btn?.style.setProperty('background', 'rgba(251, 191, 36, 0.15)');
+      btn?.style.removeProperty('box-shadow');
+      this.showToast('Modo Información desactivado', 'info');
+    }
+  }
+
+  async showFeatureInfo(featureOrId) {
+    let feature = typeof featureOrId === 'string' ? await window.db.getFeature(featureOrId) : featureOrId;
+    if (!feature) {
+      this.showToast('Elemento no encontrado', 'warning');
+      return;
+    }
+
+    this.currentInfoFeature = feature;
+    const props = feature.properties || {};
+    const titleElem = document.getElementById('info-modal-title');
+    const bodyElem = document.getElementById('info-modal-body');
+    const modal = document.getElementById('modal-info-backdrop');
+    if (!bodyElem || !modal) return;
+
+    const safeName = props.name || 'Entidad';
+    const typeLabel = feature.type === 'Point' ? 'Punto' : feature.type === 'LineString' ? 'Línea' : 'Polígono';
+    const typeIcon = feature.type === 'Point' ? '📍' : feature.type === 'LineString' ? '📏' : '⬡';
+
+    if (titleElem) {
+      titleElem.innerHTML = `
+        <span style="font-size: 20px;">${typeIcon}</span>
+        <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
+          <span style="font-weight: 700; color: #f8fafc; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">${safeName}</span>
+          <span style="font-size: 11px; color: #94a3b8; font-weight: normal;">${props.category || 'KML Importado'} • ${typeLabel}</span>
+        </div>
+      `;
+    }
+
+    // 1. Gather all ExtendedData attributes (Google Earth style)
+    let attributes = [];
+    if (props.extendedData && typeof props.extendedData === 'object') {
+      for (const [key, val] of Object.entries(props.extendedData)) {
+        attributes.push({ key, val: String(val !== undefined && val !== null ? val : '') });
+      }
+    }
+
+    // 2. If no ExtendedData, check if description has table or Key: Value pairs
+    if (attributes.length === 0 && props.description) {
+      attributes = this._parseAttributesFromDescription(props.description);
+    }
+
+    // 3. Spatial and geometry fields
+    const spatialFields = [];
+    if (feature.type === 'Point' && Array.isArray(feature.coordinates)) {
+      const lat = parseFloat(feature.coordinates[0]);
+      const lng = parseFloat(feature.coordinates[1]);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        spatialFields.push({ key: 'Latitud (WGS84)', val: lat.toFixed(7) + '°' });
+        spatialFields.push({ key: 'Longitud (WGS84)', val: lng.toFixed(7) + '°' });
+        if (props.altitude !== undefined && props.altitude !== null && props.altitude !== 0) {
+          spatialFields.push({ key: 'Altitud', val: parseFloat(props.altitude).toFixed(1) + ' m' });
+        }
+      }
+    } else if (feature.type === 'LineString' && props.length) {
+      spatialFields.push({ key: 'Longitud', val: props.length > 1000 ? (props.length / 1000).toFixed(3) + ' km' : props.length.toFixed(1) + ' m' });
+    } else if (feature.type === 'Polygon' && props.area) {
+      spatialFields.push({ key: 'Área', val: (props.area / 10000).toFixed(2) + ' ha (' + props.area.toFixed(1) + ' m²)' });
+      if (props.perimeter) spatialFields.push({ key: 'Perímetro', val: props.perimeter.toFixed(1) + ' m' });
+    }
+
+    // Build Google Earth table rows
+    let tableRows = '';
+    if (attributes.length > 0) {
+      attributes.forEach((attr, idx) => {
+        const bg = idx % 2 === 0 ? 'rgba(30, 41, 59, 0.4)' : 'rgba(15, 23, 42, 0.6)';
+        tableRows += `
+          <tr style="background: ${bg}; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+            <td style="padding: 7px 10px; font-weight: 700; color: #38bdf8; font-size: 12px; width: 42%; vertical-align: middle; word-break: break-word;">${attr.key}</td>
+            <td style="padding: 7px 10px; color: #f1f5f9; font-size: 12px; vertical-align: middle; word-break: break-word; font-family: monospace;">${attr.val || '<span style="color:#64748b; font-style:italic;">(vacío)</span>'}</td>
+          </tr>
+        `;
+      });
+    }
+
+    let spatialRows = '';
+    spatialFields.forEach((sf, idx) => {
+      const bg = idx % 2 === 0 ? 'rgba(30, 41, 59, 0.3)' : 'transparent';
+      spatialRows += `
+        <tr style="background: ${bg}; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+          <td style="padding: 6px 10px; font-weight: 600; color: #94a3b8; font-size: 11px; width: 42%; vertical-align: middle;">${sf.key}</td>
+          <td style="padding: 6px 10px; color: #e2e8f0; font-size: 11px; vertical-align: middle; font-family: monospace;">${sf.val}</td>
+        </tr>
+      `;
+    });
+
+    let photosHtml = '';
+    if (props.photos && props.photos.length > 0) {
+      photosHtml = `
+        <div style="margin-top: 14px;">
+          <div style="font-size: 12px; font-weight: 700; color: #38bdf8; margin-bottom: 6px;">📸 Fotos Asociadas (${props.photos.length})</div>
+          <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px;">
+            ${props.photos.map(p => `
+              <img src="${p}" style="height: 75px; width: 75px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.4); cursor: pointer;" onclick="window.app.openPhotoViewer('${p}', '${safeName.replace(/'/g, "\\'")}')">
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    const showDescBlock = props.description && !props.description.includes('<table') && (!props.extendedData || Object.keys(props.extendedData).length === 0 || props.description !== props.name);
+
+    bodyElem.innerHTML = `
+      ${attributes.length > 0 ? `
+        <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 11px; color: #fbbf24; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
+            <span>📋</span> Atributos Google Earth (${attributes.length})
+          </span>
+          <button class="btn btn-sm btn-secondary" style="font-size: 10px; padding: 2px 8px;" onclick="window.app.copyFeatureAttributesToClipboard()">📋 Copiar Todo</button>
+        </div>
+        <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; overflow: hidden; max-height: 42vh; overflow-y: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+        </div>
+      ` : `
+        <div style="padding: 12px; background: rgba(30, 41, 59, 0.45); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 8px; margin-bottom: 8px; font-size: 12px; color: #94a3b8; text-align: center;">
+          ℹ️ Este elemento no contiene atributos extendidos KML. A continuación se detallan sus propiedades espaciales:
+        </div>
+      `}
+
+      <!-- Geometry & Coordinates -->
+      <div style="margin-top: 12px;">
+        <span style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">📍 Geometría y Coordenadas</span>
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 8px; overflow: hidden; margin-top: 4px;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <tbody>
+              ${spatialRows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      ${showDescBlock ? `
+        <div style="margin-top: 12px;">
+          <span style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">📝 Descripción</span>
+          <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: #cbd5e1; margin-top: 4px; line-height: 1.4; word-break: break-word;">
+            ${props.description}
+          </div>
+        </div>
+      ` : ''}
+
+      ${photosHtml}
+    `;
+
+    // Footer actions
+    const btnEdit = document.getElementById('btn-info-edit');
+    if (btnEdit) {
+      btnEdit.onclick = () => {
+        this.closeInfoModal();
+        this.editFeature(feature.id);
+      };
+    }
+
+    const btnNav = document.getElementById('btn-info-navigate');
+    if (btnNav) {
+      btnNav.onclick = () => {
+        this.closeInfoModal();
+        this.startNavigationToFeature(feature.id);
+      };
+    }
+
+    modal.classList.add('active');
+  }
+
+  closeInfoModal() {
+    const modal = document.getElementById('modal-info-backdrop');
+    if (modal) modal.classList.remove('active');
+    this.currentInfoFeature = null;
+  }
+
+  copyFeatureAttributesToClipboard() {
+    if (!this.currentInfoFeature) return;
+    const f = this.currentInfoFeature;
+    const props = f.properties || {};
+    let text = `=== ${props.name || 'Punto'} ===\n`;
+    text += `Categoría: ${props.category || 'General'}\n`;
+    if (f.type === 'Point' && Array.isArray(f.coordinates)) {
+      text += `Coordenadas: Lat ${f.coordinates[0]}, Lng ${f.coordinates[1]}\n`;
+      if (props.altitude) text += `Altitud: ${props.altitude} m\n`;
+    }
+    if (props.extendedData && typeof props.extendedData === 'object' && Object.keys(props.extendedData).length > 0) {
+      text += `\n--- Atributos Google Earth ---\n`;
+      for (const [k, v] of Object.entries(props.extendedData)) {
+        text += `${k}: ${v}\n`;
+      }
+    } else if (props.description) {
+      text += `\nDescripción: ${props.description}\n`;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.showToast('📋 Atributos copiados al portapapeles', 'success');
+      }).catch(() => {
+        this.showToast('No se pudo copiar al portapapeles', 'warning');
+      });
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      this.showToast('📋 Atributos copiados al portapapeles', 'success');
+    }
+  }
+
+  _parseAttributesFromDescription(desc) {
+    if (!desc) return [];
+    const attributes = [];
+    
+    if (desc.includes('<table')) {
+      try {
+        const temp = document.createElement('div');
+        temp.innerHTML = desc;
+        const rows = temp.getElementsByTagName('tr');
+        for (let i = 0; i < rows.length; i++) {
+          const cells = rows[i].children;
+          if (cells.length >= 2) {
+            const k = cells[0].textContent.trim();
+            const v = cells[1].textContent.trim();
+            if (k) attributes.push({ key: k, val: v });
+          }
+        }
+      } catch (e) {
+        console.warn('Error parsing table from description:', e);
+      }
+    }
+
+    if (attributes.length === 0) {
+      const lines = desc.split(/[\r\n]+/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const colonIdx = trimmed.indexOf(':');
+        if (colonIdx > 0 && colonIdx < trimmed.length - 1) {
+          const key = trimmed.substring(0, colonIdx).trim();
+          const val = trimmed.substring(colonIdx + 1).trim();
+          if (key.length < 35) {
+            attributes.push({ key, val });
+          }
+        }
+      }
+    }
+
+    return attributes;
   }
 
   /* ==========================================================================
@@ -2978,11 +3263,14 @@ class GeoPlanApp {
         ${props.description ? `<div style="font-size: 11px; color: #cbd5e1;">${props.description}</div>` : ''}
 
         <div style="display: flex; gap: 6px; margin-top: 4px;">
-          <button class="btn btn-sm" style="flex: 1.5; background: #10b981; color: #ffffff; font-weight: 700; border: none; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.startNavigationToFeature('${f.id}')">
-            <span>🎯</span> <span>Guiar / Navegar</span>
+          <button class="btn btn-sm" style="flex: 1.4; background: #10b981; color: #ffffff; font-weight: 700; border: none; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.startNavigationToFeature('${f.id}')">
+            <span>🎯</span> <span>Guiar</span>
           </button>
           <button class="btn btn-sm btn-secondary" style="flex: 1; border-radius: 6px; padding: 6px 8px;" onclick="window.app.centerOnFeatureAndCloseModal('${f.id}')">
             <span>👁️</span> <span>Ver</span>
+          </button>
+          <button class="btn btn-sm" style="flex: 1; background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid #fbbf24; border-radius: 6px; padding: 6px 8px;" onclick="window.app.showFeatureInfoAndCloseSearch('${f.id}')">
+            <span>ℹ️</span> <span>Info</span>
           </button>
           <button class="btn btn-sm btn-secondary" style="flex: 1; border-radius: 6px; padding: 6px 8px;" onclick="window.app.editFeatureAndCloseModal('${f.id}')">
             <span>✏️</span> <span>Ficha</span>
@@ -3032,6 +3320,11 @@ class GeoPlanApp {
   async editFeatureAndCloseModal(featureId) {
     this.closePointSearchModal();
     this.editFeature(featureId);
+  }
+
+  async showFeatureInfoAndCloseSearch(featureId) {
+    this.closePointSearchModal();
+    this.showFeatureInfo(featureId);
   }
 
   /* ==========================================================================
