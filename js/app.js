@@ -124,6 +124,11 @@ class GeoPlanApp {
     // Load vector features for this project
     window.vectorEditor.setProjectId(project.id);
 
+    // Auto-resolve qualities for existing features (e.g. Collar_Cordero points)
+    setTimeout(() => {
+      this.autoUpgradeCollarCorderoFeatures();
+    }, 400);
+
     // Load PDF plan if exists
     const plans = await window.db.getPdfPlansByProject(project.id);
     if (plans.length > 0) {
@@ -1403,7 +1408,29 @@ class GeoPlanApp {
     const modal = document.getElementById('modal-info-backdrop');
     if (!bodyElem || !modal) return;
 
-    const safeName = props.name || 'Entidad';
+    // 1. Gather all qualities / attributes
+    let qualities = props.extendedData && typeof props.extendedData === 'object' && Object.keys(props.extendedData).length > 0
+      ? { ...props.extendedData }
+      : {};
+
+    if (Object.keys(qualities).length === 0 && window.findCollarCorderoQualities) {
+      const cached = window.findCollarCorderoQualities(feature);
+      if (cached && Object.keys(cached).length > 0) {
+        qualities = { ...cached };
+        props.extendedData = qualities;
+        if (cached.Hole_numbe && (!props.name || props.name.startsWith('Elemento'))) {
+          props.name = cached.Hole_numbe;
+        }
+      }
+    }
+
+    if (Object.keys(qualities).length === 0 && props.description) {
+      const parsed = this._parseAttributesFromDescription(props.description);
+      parsed.forEach(p => { qualities[p.key] = p.val; });
+    }
+
+    const displayName = props.name || qualities['Hole_numbe'] || qualities['Name'] || 'Punto';
+    const safeName = displayName.replace(/'/g, "\\'");
     const typeLabel = feature.type === 'Point' ? 'Punto' : feature.type === 'LineString' ? 'Línea' : 'Polígono';
     const typeIcon = feature.type === 'Point' ? '📍' : feature.type === 'LineString' ? '📏' : '⬡';
 
@@ -1411,23 +1438,15 @@ class GeoPlanApp {
       titleElem.innerHTML = `
         <span style="font-size: 20px;">${typeIcon}</span>
         <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
-          <span style="font-weight: 700; color: #f8fafc; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">${safeName}</span>
-          <span style="font-size: 11px; color: #94a3b8; font-weight: normal;">${props.category || 'KML Importado'} • ${typeLabel}</span>
+          <span style="font-weight: 700; color: #f8fafc; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">${displayName}</span>
+          <span style="font-size: 11px; color: #94a3b8; font-weight: normal;">${props.category || 'Collar_Cordero'} • ${typeLabel}</span>
         </div>
       `;
     }
 
-    // 1. Gather all ExtendedData attributes (Google Earth style)
     let attributes = [];
-    if (props.extendedData && typeof props.extendedData === 'object') {
-      for (const [key, val] of Object.entries(props.extendedData)) {
-        attributes.push({ key, val: String(val !== undefined && val !== null ? val : '') });
-      }
-    }
-
-    // 2. If no ExtendedData, check if description has table or Key: Value pairs
-    if (attributes.length === 0 && props.description) {
-      attributes = this._parseAttributesFromDescription(props.description);
+    for (const [key, val] of Object.entries(qualities)) {
+      attributes.push({ key, val: String(val !== undefined && val !== null ? val : '') });
     }
 
     // 3. Spatial and geometry fields
@@ -1493,10 +1512,10 @@ class GeoPlanApp {
     bodyElem.innerHTML = `
       ${attributes.length > 0 ? `
         <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 11px; color: #fbbf24; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
-            <span>📋</span> Atributos Google Earth (${attributes.length})
+          <span style="font-size: 11px; color: #38bdf8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
+            <span>📋</span> Cualidades del Punto (${attributes.length})
           </span>
-          <button class="btn btn-sm btn-secondary" style="font-size: 10px; padding: 2px 8px;" onclick="window.app.copyFeatureAttributesToClipboard()">📋 Copiar Todo</button>
+          <button class="btn btn-sm btn-secondary" style="font-size: 10px; padding: 2px 8px;" onclick="window.app.copyFeatureAttributesToClipboard()">📋 Copiar Cualidades</button>
         </div>
         <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; overflow: hidden; max-height: 42vh; overflow-y: auto;">
           <table style="width: 100%; border-collapse: collapse; text-align: left;">
@@ -1507,7 +1526,7 @@ class GeoPlanApp {
         </div>
       ` : `
         <div style="padding: 12px; background: rgba(30, 41, 59, 0.45); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 8px; margin-bottom: 8px; font-size: 12px; color: #94a3b8; text-align: center;">
-          ℹ️ Este elemento no contiene atributos extendidos KML. A continuación se detallan sus propiedades espaciales:
+          ℹ️ Este elemento no contiene atributos o cualidades adicionales. A continuación se detallan sus propiedades espaciales:
         </div>
       `}
 
@@ -1572,7 +1591,7 @@ class GeoPlanApp {
       if (props.altitude) text += `Altitud: ${props.altitude} m\n`;
     }
     if (props.extendedData && typeof props.extendedData === 'object' && Object.keys(props.extendedData).length > 0) {
-      text += `\n--- Atributos Google Earth ---\n`;
+      text += `\n--- Cualidades del Punto ---\n`;
       for (const [k, v] of Object.entries(props.extendedData)) {
         text += `${k}: ${v}\n`;
       }
@@ -1636,6 +1655,46 @@ class GeoPlanApp {
     }
 
     return attributes;
+  }
+
+  /**
+   * Auto-upgrades existing features in the current project (e.g. Collar_Cordero drill holes)
+   * Resolves Hole_numbe names and attaches all 13 qualities permanently to IndexedDB.
+   */
+  async autoUpgradeCollarCorderoFeatures() {
+    if (!this.currentProject || !window.findCollarCorderoQualities) return;
+    try {
+      const features = await window.db.getFeaturesByProject(this.currentProject.id);
+      let updatedCount = 0;
+
+      for (const feat of features) {
+        const props = feat.properties || {};
+        const needsQualities = !props.extendedData || Object.keys(props.extendedData).length === 0;
+        const needsName = !props.name || props.name.startsWith('Elemento');
+
+        if (needsQualities || needsName) {
+          const cached = window.findCollarCorderoQualities(feat);
+          if (cached) {
+            feat.properties.extendedData = { ...cached, ...(props.extendedData || {}) };
+            if (cached.Hole_numbe && needsName) {
+              feat.properties.name = cached.Hole_numbe;
+            }
+            if (!feat.properties.category || feat.properties.category === 'KML Importado') {
+              feat.properties.category = 'Collar_Cordero';
+            }
+            await window.db.saveFeature(feat);
+            updatedCount++;
+          }
+        }
+      }
+
+      if (updatedCount > 0) {
+        console.log(`Auto-actualizados ${updatedCount} puntos con sus cualidades de perforación.`);
+        await window.vectorEditor.loadProjectFeatures();
+      }
+    } catch (err) {
+      console.warn('AutoUpgrade Collar_Cordero notice:', err);
+    }
   }
 
   /* ==========================================================================

@@ -381,11 +381,53 @@ class VectorEditor {
    */
   _buildFeaturePopupHtml(feature) {
     const props = feature.properties || {};
-    const safeName = (props.name || 'Entidad').replace(/'/g, "\\'");
+
+    // 1. Resolve qualities / extendedData (from feature.properties, or fallback to Collar_Cordero pre-indexed cache)
+    let qualities = props.extendedData && typeof props.extendedData === 'object' && Object.keys(props.extendedData).length > 0
+      ? { ...props.extendedData }
+      : {};
+
+    if (Object.keys(qualities).length === 0 && window.findCollarCorderoQualities) {
+      const cached = window.findCollarCorderoQualities(feature);
+      if (cached && Object.keys(cached).length > 0) {
+        qualities = { ...cached };
+        props.extendedData = qualities;
+        if (cached.Hole_numbe && (!props.name || props.name.startsWith('Elemento'))) {
+          props.name = cached.Hole_numbe;
+        }
+      }
+    }
+
+    const displayName = props.name || qualities['Hole_numbe'] || qualities['Name'] || 'Entidad';
+    const safeName = displayName.replace(/'/g, "\\'");
 
     // --- Type Icon & Label ---
     const typeIcon = feature.type === 'Point' ? '📍' : feature.type === 'LineString' ? '📏' : '⬡';
     const typeLabel = feature.type === 'Point' ? 'Punto' : feature.type === 'LineString' ? 'Línea' : 'Polígono';
+
+    // --- Qualities Table (Cualidades del Punto) ---
+    let qualitiesHtml = '';
+    const qKeys = Object.keys(qualities);
+    if (qKeys.length > 0) {
+      const rows = qKeys.map(k => `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <td style="color: #38bdf8; font-weight: 700; padding: 3px 5px; font-size: 11px; width: 45%; vertical-align: top; word-break: break-word;">${k}</td>
+          <td style="color: #f8fafc; padding: 3px 5px; font-size: 11px; font-family: monospace; vertical-align: top; word-break: break-word;">${qualities[k] || '<span style="color:#64748b;">(vacío)</span>'}</td>
+        </tr>
+      `).join('');
+
+      qualitiesHtml = `
+        <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 6px; padding: 6px 8px; margin: 6px 0; max-height: 180px; overflow-y: auto;">
+          <div style="font-size: 10px; color: #38bdf8; font-weight: 800; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(56, 189, 248, 0.2); padding-bottom: 3px; letter-spacing: 0.5px;">
+            <span>📋 CUALIDADES DEL PUNTO (${qKeys.length})</span>
+            <span style="color: #fbbf24; font-size: 9px; cursor: pointer;" onclick="window.app.showFeatureInfo('${feature.id}')">Ficha ↗</span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            ${rows}
+          </table>
+        </div>
+      `;
+    }
 
     // --- Coordinate Info (for Points) ---
     let coordsHtml = '';
@@ -425,7 +467,7 @@ class VectorEditor {
 
     // --- Description ---
     let descHtml = '';
-    if (props.description && props.description.trim()) {
+    if (props.description && props.description.trim() && !props.description.includes('<table') && props.description !== props.name) {
       const descText = props.description.length > 200 
         ? props.description.substring(0, 200) + '...' 
         : props.description;
@@ -451,50 +493,24 @@ class VectorEditor {
       `;
     }
 
-    // --- ExtendedData / Google Earth Attributes Preview ---
-    let extDataHtml = '';
-    const hasExtData = props.extendedData && typeof props.extendedData === 'object' && Object.keys(props.extendedData).length > 0;
-    if (hasExtData) {
-      const keys = Object.keys(props.extendedData);
-      const previewRows = keys.slice(0, 4).map(k => `
-        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-          <td style="color: #38bdf8; font-weight: 600; padding: 2px 4px; font-size: 10px; width: 45%;">${k}</td>
-          <td style="color: #f1f5f9; padding: 2px 4px; font-size: 10px; font-family: monospace;">${props.extendedData[k] || '-'}</td>
-        </tr>
-      `).join('');
-
-      extDataHtml = `
-        <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(251, 191, 36, 0.35); border-radius: 6px; padding: 5px 8px; margin: 6px 0;">
-          <div style="font-size: 10px; color: #fbbf24; font-weight: 700; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center;">
-            <span>📋 Atributos KML (${keys.length})</span>
-            <span style="color: #38bdf8; font-size: 9px; cursor: pointer; text-decoration: underline;" onclick="window.app.showFeatureInfo('${feature.id}')">Ver ficha ↗</span>
-          </div>
-          <table style="width: 100%; border-collapse: collapse; text-align: left;">
-            ${previewRows}
-          </table>
-          ${keys.length > 4 ? `<div style="font-size: 9px; color: #94a3b8; text-align: center; margin-top: 3px;">+ ${keys.length - 4} campos más...</div>` : ''}
-        </div>
-      `;
-    }
-
     return `
       <div class="popup-feature-card" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
           <span style="font-size: 16px;">${typeIcon}</span>
-          <h4 style="margin: 0; font-size: 14px; font-weight: 700; color: #f1f5f9; flex: 1;">${props.name || 'Entidad'}</h4>
+          <h4 style="margin: 0; font-size: 14px; font-weight: 700; color: #f1f5f9; flex: 1; word-break: break-word;">${displayName}</h4>
         </div>
         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-          <span style="background: ${props.color || '#3b82f6'}33; color: ${props.color || '#3b82f6'}; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; border: 1px solid ${props.color || '#3b82f6'}55;">${props.category || 'General'}</span>
+          <span style="background: ${props.color || '#3b82f6'}33; color: ${props.color || '#3b82f6'}; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; border: 1px solid ${props.color || '#3b82f6'}55;">${props.category || 'Collar_Cordero'}</span>
           <span style="color: #64748b; font-size: 10px;">${typeLabel}</span>
         </div>
         ${descHtml}
-        ${extDataHtml}
+        ${qualitiesHtml}
         ${coordsHtml}
         ${metricsHtml}
         ${photoThumb}
         <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 8px;">
-          <button class="btn btn-sm" onclick="window.app.showFeatureInfo('${feature.id}')" style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid #fbbf24; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer;">
-            <span>ℹ️</span> <span>Ver Información (Google Earth)</span>
+          <button class="btn btn-sm" onclick="window.app.showFeatureInfo('${feature.id}')" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer;">
+            <span>ℹ️</span> <span>Ver Información</span>
           </button>
           <button class="btn btn-sm" onclick="window.app.startNavigationToFeature('${feature.id}')" style="background: rgba(16,185,129,0.25); color: #10b981; border: 1px solid #10b981; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer;">
             <span>🎯</span> <span>Guiar / Navegar hacia este Punto</span>

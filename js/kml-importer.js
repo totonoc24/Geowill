@@ -100,31 +100,56 @@ class KmlImporter {
   _parsePlacemark(pm, projectId, stylesMap, index) {
     const results = [];
 
-    // Placemark Name
-    const nameNode = this._getChildByTagName(pm, 'name');
-    const name = nameNode ? nameNode.textContent.trim() : `Elemento ${index}`;
-
     // Placemark Description and Embedded Photos
     const descNode = this._getChildByTagName(pm, 'description');
     let description = descNode ? this._cleanHtmlDescription(descNode.textContent) : '';
     let photos = descNode ? this._extractPhotosFromDescription(descNode.textContent) : [];
 
-    // Folder Category (if nested)
+    // Folder or Document Category (if nested)
     let category = 'KML Importado';
     const parentFolder = pm.parentElement;
-    if (parentFolder && parentFolder.tagName.toLowerCase() === 'folder') {
+    if (parentFolder && parentFolder.tagName && parentFolder.tagName.toLowerCase() === 'folder') {
       const fName = this._getChildByTagName(parentFolder, 'name');
       if (fName && fName.textContent.trim()) {
         category = fName.textContent.trim();
+      }
+    } else if (parentFolder && parentFolder.tagName && parentFolder.tagName.toLowerCase() === 'document') {
+      const dName = this._getChildByTagName(parentFolder, 'name');
+      if (dName && dName.textContent.trim()) {
+        category = dName.textContent.trim().replace(/\.shp$/i, '').replace(/\.kml$/i, '');
       }
     }
 
     // Style Color
     let color = this._resolvePlacemarkColor(pm, stylesMap);
 
-    // ExtendedData attributes (Google Earth style: Data, SimpleData, SchemaData)
+    // ExtendedData attributes / qualities
     const rawDesc = descNode ? descNode.textContent : '';
     const extendedData = this._extractExtendedData(pm, rawDesc);
+
+    // Placemark Name: Check <name> tag first; if absent, look for Hole_numbe, Name, ID, etc.
+    let name = '';
+    const nameNode = this._getChildByTagName(pm, 'name');
+    if (nameNode && nameNode.textContent.trim()) {
+      name = nameNode.textContent.trim();
+    }
+    if (!name) {
+      const candidateKeys = [
+        'Hole_numbe', 'hole_numbe', 'Hole_number', 'hole_number', 'Hole_ID', 'hole_id', 'HoleId',
+        'Name', 'name', 'Nombre', 'nombre', 'ID', 'id', 'Id', 'Codigo', 'codigo', 'Code', 'code',
+        'Punto', 'punto', 'Point', 'point', 'Sondeo', 'sondeo', 'Pozo', 'pozo', 'Estacion', 'estacion'
+      ];
+      for (const k of candidateKeys) {
+        if (extendedData[k] && String(extendedData[k]).trim()) {
+          name = String(extendedData[k]).trim();
+          break;
+        }
+      }
+    }
+    if (!name) {
+      const firstVal = Object.values(extendedData).find(v => v && String(v).trim().length > 0 && String(v).trim().length < 40);
+      name = firstVal ? String(firstVal).trim() : `Elemento ${index}`;
+    }
 
     // 1. Check for Point
     const pointNodes = pm.getElementsByTagName('Point');
@@ -133,18 +158,29 @@ class KmlImporter {
       if (coordsNode) {
         const pt = this._parseSingleCoordinate(coordsNode.textContent);
         if (pt) {
+          // If name is still generic, check Collar_Cordero pre-indexed cache
+          let finalName = name;
+          let finalQualities = { ...extendedData };
+          if (window.findCollarCorderoQualities && (!finalName || finalName.startsWith('Elemento'))) {
+            const cached = window.findCollarCorderoQualities({ type: 'Point', coordinates: [pt.lat, pt.lng], properties: { name: finalName } });
+            if (cached) {
+              finalQualities = { ...cached, ...finalQualities };
+              if (cached.Hole_numbe) finalName = cached.Hole_numbe;
+            }
+          }
+
           results.push({
             projectId: projectId,
             type: 'Point',
             coordinates: [pt.lat, pt.lng],
             properties: {
-              name: name,
+              name: finalName,
               category: category || 'Punto KML',
               description: description,
               altitude: pt.alt || 0,
               color: color || '#f43f5e',
               photos: photos,
-              extendedData: extendedData
+              extendedData: finalQualities
             }
           });
         }
@@ -371,51 +407,57 @@ class KmlImporter {
   }
 
   /**
-   * Extracts all ExtendedData fields from a Placemark node.
-   * Supports: <Data>, <SimpleData> within <SchemaData>, and plain <SimpleField>.
-   * Also extracts key-value pairs from HTML tables inside <description> (ArcGIS / QGIS / Google Earth).
-   * Returns an object with { fieldName: value } pairs, identical to Google Earth.
+   * Extracts all ExtendedData fields and qualities from a Placemark node.
+   * Supports: <SimpleData> within <SchemaData>, <Data>, and plain fields.
+   * Also extracts key-value pairs from HTML tables inside <description>.
+   * Returns an object with { fieldName: value } pairs.
    */
   _extractExtendedData(pm, descRaw = '') {
     const data = {};
     if (!pm) return data;
 
-    const getNodes = (parent, tag) => {
-      if (!parent) return [];
-      let nodes = parent.getElementsByTagName(tag);
-      if (!nodes || nodes.length === 0) nodes = parent.getElementsByTagName('kml:' + tag);
-      if ((!nodes || nodes.length === 0) && parent.getElementsByTagNameNS) {
-        nodes = parent.getElementsByTagNameNS('*', tag);
+    const findDescendantsByTagName = (parent, tagName) => {
+      const lower = tagName.toLowerCase();
+      const results = [];
+      const all = parent.getElementsByTagName('*');
+      for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        const name = (el.localName || el.nodeName || el.tagName || '').toLowerCase();
+        if (name === lower || name.endsWith(':' + lower)) {
+          results.push(el);
+        }
       }
-      return Array.from(nodes || []);
+      return results;
     };
 
-    const extDataNodes = getNodes(pm, 'ExtendedData');
-    if (extDataNodes.length > 0) {
-      const extDataNode = extDataNodes[0];
-
-      // Format 1: <Data name="key"><value>val</value></Data>
-      const dataNodes = getNodes(extDataNode, 'Data');
-      for (let i = 0; i < dataNodes.length; i++) {
-        const key = dataNodes[i].getAttribute('name');
-        if (!key) continue;
-        const valNode = getNodes(dataNodes[i], 'value')[0];
-        const displayNode = getNodes(dataNodes[i], 'displayName')[0];
-        const displayKey = displayNode && displayNode.textContent.trim() ? displayNode.textContent.trim() : key;
-        data[displayKey] = valNode ? valNode.textContent.trim() : '';
-      }
-
-      // Format 2: <SchemaData><SimpleData name="key">val</SimpleData></SchemaData>
-      const simpleDataNodes = getNodes(extDataNode, 'SimpleData');
-      for (let i = 0; i < simpleDataNodes.length; i++) {
-        const key = simpleDataNodes[i].getAttribute('name');
-        if (!key) continue;
-        data[key] = simpleDataNodes[i].textContent.trim();
+    // 1. Extract from <SimpleData name="...">value</SimpleData> anywhere inside Placemark
+    const simpleDataNodes = findDescendantsByTagName(pm, 'SimpleData');
+    for (let i = 0; i < simpleDataNodes.length; i++) {
+      const el = simpleDataNodes[i];
+      const key = el.getAttribute('name') || el.getAttribute('Name') || el.getAttribute('NAME');
+      if (key) {
+        data[key.trim()] = el.textContent ? el.textContent.trim() : '';
       }
     }
 
-    // Format 3: If no ExtendedData found or table present in description, extract HTML <table> rows
-    if (descRaw && descRaw.includes('<table')) {
+    // 2. Extract from <Data name="..."><value>...</value></Data> anywhere inside Placemark
+    const dataNodes = findDescendantsByTagName(pm, 'Data');
+    for (let i = 0; i < dataNodes.length; i++) {
+      const el = dataNodes[i];
+      const key = el.getAttribute('name') || el.getAttribute('Name') || el.getAttribute('NAME');
+      if (!key) continue;
+      
+      const valNodes = findDescendantsByTagName(el, 'value');
+      const val = valNodes.length > 0 ? valNodes[0].textContent.trim() : '';
+      
+      const dispNodes = findDescendantsByTagName(el, 'displayName');
+      const displayKey = dispNodes.length > 0 && dispNodes[0].textContent.trim() ? dispNodes[0].textContent.trim() : key;
+      
+      data[displayKey.trim()] = val;
+    }
+
+    // 3. Fallback: Parse HTML <table> if present in description
+    if (Object.keys(data).length === 0 && descRaw && descRaw.includes('<table')) {
       try {
         const temp = document.createElement('div');
         temp.innerHTML = descRaw;

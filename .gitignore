@@ -23,3 +23,8 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+
+# Sensitive / Proprietary KML and Survey Data
+*.kml
+*.kmz
+js/collar-cordero-data.js
