@@ -120,8 +120,9 @@ class KmlImporter {
       }
     }
 
-    // Style Color
+    // Style Color & Symbol Shape
     let color = this._resolvePlacemarkColor(pm, stylesMap);
+    let symbol = this._resolvePlacemarkSymbol(pm, stylesMap);
 
     // ExtendedData attributes / qualities
     const rawDesc = descNode ? descNode.textContent : '';
@@ -179,6 +180,7 @@ class KmlImporter {
               description: description,
               altitude: pt.alt || 0,
               color: color || '#f43f5e',
+              symbol: symbol || 'circle',
               photos: photos,
               extendedData: finalQualities
             }
@@ -314,7 +316,23 @@ class KmlImporter {
         hexColor = this._kmlColorToHex(colorNode.textContent.trim());
       }
 
-      styles[id] = { color: hexColor };
+      let symbol = 'circle';
+      if (iconStyle) {
+        const hrefNode = iconStyle.getElementsByTagName('href')[0];
+        if (hrefNode && hrefNode.textContent) {
+          const href = hrefNode.textContent.toLowerCase();
+          if (href.includes('pushpin') || href.includes('pin')) symbol = 'pin';
+          else if (href.includes('square')) symbol = 'square';
+          else if (href.includes('diamond')) symbol = 'diamond';
+          else if (href.includes('triangle')) symbol = 'triangle';
+          else if (href.includes('cross') || href.includes('cross-hairs')) symbol = 'cross';
+          else if (href.includes('target')) symbol = 'drillhole';
+          else if (href.includes('star')) symbol = 'star';
+          else if (href.includes('flag')) symbol = 'flag';
+        }
+      }
+
+      styles[id] = { color: hexColor, symbol: symbol };
     }
 
     return styles;
@@ -338,6 +356,39 @@ class KmlImporter {
     }
 
     return null;
+  }
+
+  _resolvePlacemarkSymbol(pm, stylesMap) {
+    // 1. Inline Style
+    const inlineStyle = pm.getElementsByTagName('Style')[0];
+    if (inlineStyle) {
+      const iconStyle = inlineStyle.getElementsByTagName('IconStyle')[0];
+      if (iconStyle) {
+        const hrefNode = iconStyle.getElementsByTagName('href')[0];
+        if (hrefNode && hrefNode.textContent) {
+          const href = hrefNode.textContent.toLowerCase();
+          if (href.includes('pushpin') || href.includes('pin')) return 'pin';
+          if (href.includes('square')) return 'square';
+          if (href.includes('diamond')) return 'diamond';
+          if (href.includes('triangle')) return 'triangle';
+          if (href.includes('cross') || href.includes('cross-hairs')) return 'cross';
+          if (href.includes('target')) return 'drillhole';
+          if (href.includes('star')) return 'star';
+          if (href.includes('flag')) return 'flag';
+        }
+      }
+    }
+
+    // 2. StyleUrl Reference (#styleId)
+    const styleUrl = pm.getElementsByTagName('styleUrl')[0];
+    if (styleUrl) {
+      const url = styleUrl.textContent.trim().replace(/^#/, '');
+      if (stylesMap[url] && stylesMap[url].symbol) {
+        return stylesMap[url].symbol;
+      }
+    }
+
+    return 'circle';
   }
 
   /**

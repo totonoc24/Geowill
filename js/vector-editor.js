@@ -1,8 +1,153 @@
 /**
- * GeoPlan Android GIS - Vector Geometry & Attribute Editor
- * Digitize Points, Lines, and Polygons with live Geodesic Area/Distance calculation,
- * camera photo attachment, and attribute forms.
+ * Geowill Android GIS - Point Symbology Engine
+ * Standardized SVG symbols for topography, geodesy, geology, and mining.
  */
+const POINT_SYMBOLS = {
+  circle: {
+    id: 'circle',
+    name: 'Círculo',
+    icon: '🔵',
+    description: 'Punto geodésico clásico / Vértice circular',
+    renderSvg: (color, size) => `
+      <svg viewBox="0 0 24 24" width="${size}" height="${size}" style="display:block; overflow:visible;">
+        <circle cx="12" cy="12" r="8.5" fill="${color}" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.6))"/>
+      </svg>`,
+    getAnchor: (w, h) => [w / 2, h / 2]
+  },
+  pin: {
+    id: 'pin',
+    name: 'Pin GPS',
+    icon: '📍',
+    description: 'Marcador de posición Google Earth / GPS',
+    renderSvg: (color, size) => `
+      <svg viewBox="0 0 24 28" width="${size}" height="${Math.round(size * 1.16)}" style="display:block; overflow:visible;">
+        <path d="M12 2C7.58 2 4 5.58 4 10c0 5.25 8 16 8 16s8-10.75 8-16c0-4.42-3.58-8-8-8z" fill="${color}" stroke="#ffffff" stroke-width="2" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.6))"/>
+        <circle cx="12" cy="10" r="3.2" fill="#ffffff"/>
+      </svg>`,
+    getAnchor: (w, h) => [w / 2, h - 3]
+  },
+  diamond: {
+    id: 'diamond',
+    name: 'Rombo',
+    icon: '🔷',
+    description: 'Estación de levantamiento / Hito de lindero',
+    renderSvg: (color, size) => `
+      <svg viewBox="0 0 24 24" width="${size}" height="${size}" style="display:block; overflow:visible;">
+        <polygon points="12,2 22,12 12,22 2,12" fill="${color}" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.6))"/>
+      </svg>`,
+    getAnchor: (w, h) => [w / 2, h / 2]
+  },
+  square: {
+    id: 'square',
+    name: 'Cuadrado',
+    icon: '⏹️',
+    description: 'Estructura o detalle cadastral',
+    renderSvg: (color, size) => `
+      <svg viewBox="0 0 24 24" width="${size}" height="${size}" style="display:block; overflow:visible;">
+        <rect x="3.5" y="3.5" width="17" height="17" rx="2" fill="${color}" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.6))"/>
+      </svg>`,
+    getAnchor: (w, h) => [w / 2, h / 2]
+  },
+  triangle: {
+    id: 'triangle',
+    name: 'Triángulo',
+    icon: '🔺',
+    description: 'Delta geodésico / Base topográfica',
+    renderSvg: (color, size) => `
+      <svg viewBox="0 0 24 24" width="${size}" height="${size}" style="display:block; overflow:visible;">
+        <polygon points="12,2 22,21 2,21" fill="${color}" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.6))"/>
+      </svg>`,
+    getAnchor: (w, h) => [w / 2, h / 2]
+  },
+  cross: {
+    id: 'cross',
+    name: 'Cruz / Mira',
+    icon: '➕',
+    description: 'Vértice de apoyo / Punto de control',
+    renderSvg: (color, size) => `
+      <svg viewBox="0 0 24 24" width="${size}" height="${size}" style="display:block; overflow:visible;">
+        <circle cx="12" cy="12" r="9.2" fill="none" stroke="${color}" stroke-width="2.8" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.6))"/>
+        <line x1="12" y1="1" x2="12" y2="23" stroke="#ffffff" stroke-width="2.6"/>
+        <line x1="1" y1="12" x2="23" y2="12" stroke="#ffffff" stroke-width="2.6"/>
+        <line x1="12" y1="2.5" x2="12" y2="21.5" stroke="${color}" stroke-width="1.6"/>
+        <line x1="2.5" y1="12" x2="21.5" y2="12" stroke="${color}" stroke-width="1.6"/>
+        <circle cx="12" cy="12" r="3.2" fill="${color}" stroke="#ffffff" stroke-width="1.5"/>
+      </svg>`,
+    getAnchor: (w, h) => [w / 2, h / 2]
+  },
+  drillhole: {
+    id: 'drillhole',
+    name: 'Sondeo / Pozo',
+    icon: '🎯',
+    description: 'Perforación / Sondeo geológico o minero',
+    renderSvg: (color, size) => `
+      <svg viewBox="0 0 24 24" width="${size}" height="${size}" style="display:block; overflow:visible;">
+        <circle cx="12" cy="12" r="9.5" fill="${color}" fill-opacity="0.28" stroke="${color}" stroke-width="2.5" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.6))"/>
+        <circle cx="12" cy="12" r="5.5" fill="#ffffff" stroke="${color}" stroke-width="2"/>
+        <circle cx="12" cy="12" r="2.4" fill="${color}"/>
+      </svg>`,
+    getAnchor: (w, h) => [w / 2, h / 2]
+  },
+  star: {
+    id: 'star',
+    name: 'Estrella',
+    icon: '⭐',
+    description: 'Hito o punto de interés principal',
+    renderSvg: (color, size) => `
+      <svg viewBox="0 0 24 24" width="${size}" height="${size}" style="display:block; overflow:visible;">
+        <polygon points="12,1.5 15.2,8.5 22.8,9.5 17.2,14.8 18.6,22.5 12,18.8 5.4,22.5 6.8,14.8 1.2,9.5 8.8,8.5" fill="${color}" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.6))"/>
+      </svg>`,
+    getAnchor: (w, h) => [w / 2, h / 2]
+  },
+  flag: {
+    id: 'flag',
+    name: 'Bandera',
+    icon: '🚩',
+    description: 'Estaca de replanteo / Punto marcado',
+    renderSvg: (color, size) => `
+      <svg viewBox="0 0 24 26" width="${size}" height="${Math.round(size * 1.08)}" style="display:block; overflow:visible;">
+        <line x1="5" y1="2" x2="5" y2="24" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+        <line x1="5" y1="2" x2="5" y2="24" stroke="#334155" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M5.5 3.5l14.5 5.5-14.5 5.5V3.5z" fill="${color}" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.6))"/>
+      </svg>`,
+    getAnchor: (w, h) => [Math.round(w / 4), h - 2]
+  }
+};
+
+const POINT_SIZES = {
+  sm: { id: 'sm', label: 'Pequeño', px: 14, touch: 32 },
+  md: { id: 'md', label: 'Mediano', px: 18, touch: 38 },
+  lg: { id: 'lg', label: 'Grande', px: 24, touch: 44 }
+};
+
+window.pointSymbology = {
+  POINT_SYMBOLS,
+  POINT_SIZES,
+  renderSvg(symbolId = 'circle', color = '#f43f5e', sizePx = 18) {
+    const sym = POINT_SYMBOLS[symbolId] || POINT_SYMBOLS.circle;
+    return sym.renderSvg(color, sizePx);
+  },
+  createPointLeafletIcon(props = {}) {
+    const symbolId = props.symbol || 'circle';
+    const symDef = POINT_SYMBOLS[symbolId] || POINT_SYMBOLS.circle;
+    const sizeKey = props.symbolSize || 'md';
+    const sizeDef = POINT_SIZES[sizeKey] || (typeof sizeKey === 'number' ? { px: sizeKey, touch: Math.max(34, sizeKey + 16) } : POINT_SIZES.md);
+    const color = props.color || '#f43f5e';
+
+    const touchSize = sizeDef.touch;
+    const svgHtml = symDef.renderSvg(color, sizeDef.px);
+    const anchor = symDef.getAnchor(touchSize, touchSize);
+
+    return L.divIcon({
+      className: 'custom-point-pin',
+      html: `<div style="width: ${touchSize}px; height: ${touchSize}px; display: flex; align-items: center; justify-content: center; cursor: pointer; pointer-events: auto;">
+               ${svgHtml}
+             </div>`,
+      iconSize: [touchSize, touchSize],
+      iconAnchor: anchor
+    });
+  }
+};
 
 class VectorEditor {
   constructor() {
@@ -323,15 +468,16 @@ class VectorEditor {
     const color = props.color || '#3b82f6';
 
     if (feature.type === 'Point') {
-      // Larger hit area (36x36) with visible pin (14x14) centered inside for easy mobile tapping
-      const icon = L.divIcon({
-        className: 'custom-point-pin',
-        html: `<div style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                 <div style="background-color: ${color}; width: 16px; height: 16px; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.7), 0 0 0 3px ${color}44;"></div>
-               </div>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18]
-      });
+      const icon = window.pointSymbology
+        ? window.pointSymbology.createPointLeafletIcon(props)
+        : L.divIcon({
+            className: 'custom-point-pin',
+            html: `<div style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                     <div style="background-color: ${color}; width: 16px; height: 16px; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.7), 0 0 0 3px ${color}44;"></div>
+                   </div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+          });
       layer = L.marker(feature.coordinates, { pane: 'markerPaneCustom', icon });
     } else if (feature.type === 'LineString') {
       layer = L.polyline(feature.coordinates, {
@@ -402,7 +548,13 @@ class VectorEditor {
     const safeName = displayName.replace(/'/g, "\\'");
 
     // --- Type Icon & Label ---
-    const typeIcon = feature.type === 'Point' ? '📍' : feature.type === 'LineString' ? '📏' : '⬡';
+    let typeIcon = '📍';
+    if (feature.type === 'Point') {
+      const symDef = window.pointSymbology?.POINT_SYMBOLS[props.symbol || 'circle'];
+      typeIcon = symDef ? symDef.icon : '📍';
+    } else {
+      typeIcon = feature.type === 'LineString' ? '📏' : '⬡';
+    }
     const typeLabel = feature.type === 'Point' ? 'Punto' : feature.type === 'LineString' ? 'Línea' : 'Polígono';
 
     // --- Qualities Table (Cualidades del Punto) ---

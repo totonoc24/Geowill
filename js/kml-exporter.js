@@ -220,12 +220,41 @@ class KmlExporter {
     return optimized;
   }
 
+  /**
+   * Maps Geowill point symbol shapes to official Google Earth KML icon shapes
+   */
+  _getKmlIconHref(symbol) {
+    switch (symbol) {
+      case 'pin':
+        return 'http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png';
+      case 'square':
+        return 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png';
+      case 'diamond':
+        return 'http://maps.google.com/mapfiles/kml/shapes/diamond.png';
+      case 'triangle':
+        return 'http://maps.google.com/mapfiles/kml/shapes/triangle.png';
+      case 'cross':
+        return 'http://maps.google.com/mapfiles/kml/shapes/cross-hairs.png';
+      case 'drillhole':
+        return 'http://maps.google.com/mapfiles/kml/shapes/target.png';
+      case 'star':
+        return 'http://maps.google.com/mapfiles/kml/shapes/star.png';
+      case 'flag':
+        return 'http://maps.google.com/mapfiles/kml/shapes/flag.png';
+      case 'circle':
+      default:
+        return 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png';
+    }
+  }
+
   _generatePlacemarkPoint(f, index = 0) {
     const props = f.properties || {};
     const [lat, lng] = f.coordinates;
     const colorKml = this.hexToKmlColor(props.color, 'ff');
     const descHtml = this._buildDescriptionHtml(props, [lat, lng], 'Punto');
     const safeId = `point_${f.id || index}`;
+    const iconHref = this._getKmlIconHref(props.symbol);
+    const scale = props.symbolSize === 'lg' ? '1.3' : props.symbolSize === 'sm' ? '0.9' : '1.1';
 
     return `      <Placemark id="${safeId}">
         <name><![CDATA[${props.name || 'Punto'}]]></name>
@@ -233,8 +262,8 @@ class KmlExporter {
         <Style>
           <IconStyle>
             <color>${colorKml}</color>
-            <scale>1.1</scale>
-            <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
+            <scale>${scale}</scale>
+            <Icon><href>${iconHref}</href></Icon>
           </IconStyle>
         </Style>
         <ExtendedData>

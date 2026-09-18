@@ -712,6 +712,20 @@ class GeoPlanApp {
     document.getElementById('feature-desc-input').value = feature.properties?.description || '';
     document.getElementById('feature-color-input').value = feature.properties?.color || '#06b6d4';
 
+    // Toggle and prefill Point Symbology options
+    const pointSymbolGroup = document.getElementById('feature-point-symbol-group');
+    if (pointSymbolGroup) {
+      if (feature.type === 'Point') {
+        pointSymbolGroup.style.display = 'block';
+        const symSelect = document.getElementById('feature-symbol-select');
+        const sizeSelect = document.getElementById('feature-symbol-size-select');
+        if (symSelect) symSelect.value = feature.properties?.symbol || 'circle';
+        if (sizeSelect) sizeSelect.value = feature.properties?.symbolSize || 'md';
+      } else {
+        pointSymbolGroup.style.display = 'none';
+      }
+    }
+
     // Render Rich Coordinates Card for Point / Line / Polygon
     this._renderFeatureCoordsCard(feature);
 
@@ -1348,6 +1362,12 @@ class GeoPlanApp {
         category,
         description: desc,
         color,
+        symbol: this.currentFeatureDraft.type === 'Point' 
+          ? (document.getElementById('feature-symbol-select')?.value || 'circle') 
+          : undefined,
+        symbolSize: this.currentFeatureDraft.type === 'Point' 
+          ? (document.getElementById('feature-symbol-size-select')?.value || 'md') 
+          : undefined,
         photos: this.tempFeaturePhotos
       }
     };
@@ -2823,6 +2843,17 @@ class GeoPlanApp {
         }).join('') + (result.features.length > 50 ? `<div style="color:#38bdf8; padding-top:4px;">...y ${result.features.length - 50} elementos más</div>` : '');
       }
 
+      // Initialize or hide point symbology section based on whether KML contains points
+      const symbologyCard = document.getElementById('kml-import-symbology-card');
+      if (symbologyCard) {
+        if (result.stats.points > 0) {
+          symbologyCard.style.display = 'block';
+          this._initKmlSymbologyControls(result.stats.points);
+        } else {
+          symbologyCard.style.display = 'none';
+        }
+      }
+
       if (previewBox) previewBox.style.display = 'block';
       this.showToast(`KML cargado: ${result.features.length} elementos listos para importar.`, 'success');
     } catch (err) {
@@ -2840,18 +2871,30 @@ class GeoPlanApp {
     try {
       const feats = this.pendingImportKmlFeatures;
       let count = 0;
+      let pointsCount = 0;
       const allBounds = [];
 
       for (const feat of feats) {
         feat.projectId = this.currentProject.id;
-        await window.db.saveFeature(feat);
-        count++;
+        feat.properties = feat.properties || {};
 
         if (feat.type === 'Point') {
+          pointsCount++;
+          // Apply chosen point symbology, color, and size
+          if (this.kmlImportSymbology) {
+            feat.properties.symbol = this.kmlImportSymbology.shape || 'circle';
+            feat.properties.symbolSize = this.kmlImportSymbology.size || 'md';
+            if (!this.kmlImportSymbology.useOriginalColors || !feat.properties.color) {
+              feat.properties.color = this.kmlImportSymbology.color || '#06b6d4';
+            }
+          }
           allBounds.push(feat.coordinates);
         } else if (Array.isArray(feat.coordinates[0])) {
           feat.coordinates.forEach(c => allBounds.push(c));
         }
+
+        await window.db.saveFeature(feat);
+        count++;
       }
 
       await window.vectorEditor.loadProjectFeatures();
@@ -2868,10 +2911,194 @@ class GeoPlanApp {
         } catch (e) {}
       }
 
-      this.showToast(`✅ Se importaron ${count} elementos con éxito al proyecto actual.`, 'success');
+      const pointDetail = pointsCount > 0 ? ` (${pointsCount} puntos con simbología personalizada)` : '';
+      this.showToast(`✅ Se importaron ${count} elementos con éxito al proyecto actual${pointDetail}.`, 'success', 5000);
     } catch (err) {
       console.error('Error saving imported features:', err);
       this.showToast('Error guardando entidades KML: ' + err.message, 'error');
+    }
+  }
+
+  _initKmlSymbologyControls(pointsCount) {
+    if (!window.pointSymbology) return;
+
+    // Default configuration for KML points
+    this.kmlImportSymbology = {
+      shape: 'circle',
+      color: '#06b6d4',
+      size: 'md',
+      useOriginalColors: false
+    };
+
+    // Update badge
+    const badge = document.getElementById('kml-symbology-points-badge');
+    if (badge) {
+      badge.textContent = `${pointsCount} ${pointsCount === 1 ? 'punto' : 'puntos'}`;
+    }
+
+    // Render Shapes Grid
+    const shapesGrid = document.getElementById('kml-shapes-grid');
+    if (shapesGrid) {
+      const symbols = window.pointSymbology.POINT_SYMBOLS;
+      shapesGrid.innerHTML = Object.keys(symbols).map(key => {
+        const s = symbols[key];
+        const isActive = key === this.kmlImportSymbology.shape;
+        const svgIcon = window.pointSymbology.renderSvg(key, '#38bdf8', 18);
+        return `
+          <button type="button" class="symbology-shape-btn ${isActive ? 'active' : ''}" data-symbol="${key}" title="${s.description}">
+            <div class="symbology-shape-icon">${svgIcon}</div>
+            <span class="symbology-shape-label">${s.name}</span>
+          </button>
+        `;
+      }).join('');
+
+      // Bind shape button clicks
+      shapesGrid.querySelectorAll('.symbology-shape-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const chosenShape = btn.getAttribute('data-symbol');
+          this.kmlImportSymbology.shape = chosenShape;
+          shapesGrid.querySelectorAll('.symbology-shape-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          this._updateKmlSymbologyLivePreview();
+        });
+      });
+    }
+
+    // Color Swatches Palette
+    const colorContainer = document.getElementById('kml-color-picker-container');
+    if (colorContainer) {
+      const palette = [
+        '#ef4444', // Rojo
+        '#f97316', // Naranja
+        '#eab308', // Amarillo
+        '#10b981', // Verde Esmeralda
+        '#06b6d4', // Cian Geowill
+        '#3b82f6', // Azul Eléctrico
+        '#8b5cf6', // Violeta
+        '#ec4899', // Rosa Magenta
+        '#ffffff', // Blanco
+        '#1e293b'  // Negro Carbón
+      ];
+
+      colorContainer.innerHTML = palette.map(hex => `
+        <div class="symbology-color-chip ${hex === this.kmlImportSymbology.color ? 'active' : ''}" data-color="${hex}" style="background-color: ${hex};" title="Color ${hex}"></div>
+      `).join('') + `
+        <label class="symbology-custom-color-btn" title="Selector de color personalizado">
+          <input type="color" id="kml-custom-color-input" value="${this.kmlImportSymbology.color}">
+          <span>Libre</span>
+        </label>
+      `;
+
+      // Bind color swatch clicks
+      colorContainer.querySelectorAll('.symbology-color-chip').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+          e.preventDefault();
+          const chosenColor = chip.getAttribute('data-color');
+          this.kmlImportSymbology.color = chosenColor;
+          colorContainer.querySelectorAll('.symbology-color-chip').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          const customInp = document.getElementById('kml-custom-color-input');
+          if (customInp) customInp.value = chosenColor;
+          this._updateKmlSymbologyLivePreview();
+        });
+      });
+
+      // Bind custom color input
+      const customInp = document.getElementById('kml-custom-color-input');
+      if (customInp) {
+        customInp.addEventListener('input', (e) => {
+          const chosenColor = e.target.value;
+          this.kmlImportSymbology.color = chosenColor;
+          colorContainer.querySelectorAll('.symbology-color-chip').forEach(c => c.classList.remove('active'));
+          this._updateKmlSymbologyLivePreview();
+        });
+      }
+    }
+
+    // Bind Color Mode Toggle
+    const btnModeCustom = document.getElementById('kml-color-mode-custom');
+    const btnModeOriginal = document.getElementById('kml-color-mode-original');
+    const colorPickerContainer = document.getElementById('kml-color-picker-container');
+    const originalNotice = document.getElementById('kml-color-original-notice');
+
+    const updateColorMode = (useOriginal) => {
+      this.kmlImportSymbology.useOriginalColors = useOriginal;
+      if (useOriginal) {
+        btnModeOriginal?.classList.add('active');
+        btnModeCustom?.classList.remove('active');
+        if (originalNotice) originalNotice.style.display = 'block';
+        if (colorPickerContainer) colorPickerContainer.style.opacity = '0.4';
+      } else {
+        btnModeCustom?.classList.add('active');
+        btnModeOriginal?.classList.remove('active');
+        if (originalNotice) originalNotice.style.display = 'none';
+        if (colorPickerContainer) colorPickerContainer.style.opacity = '1';
+      }
+      this._updateKmlSymbologyLivePreview();
+    };
+
+    if (btnModeCustom && btnModeOriginal) {
+      const newCustom = btnModeCustom.cloneNode(true);
+      const newOriginal = btnModeOriginal.cloneNode(true);
+      btnModeCustom.parentNode.replaceChild(newCustom, btnModeCustom);
+      btnModeOriginal.parentNode.replaceChild(newOriginal, btnModeOriginal);
+
+      newCustom.addEventListener('click', () => updateColorMode(false));
+      newOriginal.addEventListener('click', () => updateColorMode(true));
+    }
+
+    // Bind Size Pills
+    const sizeContainer = document.getElementById('kml-size-segmented');
+    if (sizeContainer) {
+      const newSizeContainer = sizeContainer.cloneNode(true);
+      sizeContainer.parentNode.replaceChild(newSizeContainer, sizeContainer);
+
+      newSizeContainer.querySelectorAll('.symbology-size-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          const chosenSize = pill.getAttribute('data-size');
+          this.kmlImportSymbology.size = chosenSize;
+          newSizeContainer.querySelectorAll('.symbology-size-pill').forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          this._updateKmlSymbologyLivePreview();
+        });
+      });
+    }
+
+    this._updateKmlSymbologyLivePreview();
+  }
+
+  _updateKmlSymbologyLivePreview() {
+    if (!this.kmlImportSymbology || !window.pointSymbology) return;
+
+    const { shape, color, size, useOriginalColors } = this.kmlImportSymbology;
+    const symDef = window.pointSymbology.POINT_SYMBOLS[shape] || window.pointSymbology.POINT_SYMBOLS.circle;
+    const sizeDef = window.pointSymbology.POINT_SIZES[size] || window.pointSymbology.POINT_SIZES.md;
+
+    // Render Preview Icon (slightly enlarged for clarity in preview card)
+    const previewWrapper = document.getElementById('kml-symbology-preview-wrapper');
+    if (previewWrapper) {
+      previewWrapper.innerHTML = window.pointSymbology.renderSvg(shape, color, sizeDef.px + 4);
+    }
+
+    // Render Name
+    const nameElem = document.getElementById('kml-symbology-preview-name');
+    if (nameElem) {
+      nameElem.innerHTML = `${symDef.icon} ${symDef.name}`;
+    }
+
+    // Render Color info
+    const dotElem = document.getElementById('kml-symbology-preview-color-dot');
+    const hexElem = document.getElementById('kml-symbology-preview-color-hex');
+    if (dotElem) dotElem.style.backgroundColor = color;
+    if (hexElem) {
+      hexElem.textContent = useOriginalColors ? 'Color del KML' : color.toUpperCase();
+    }
+
+    // Render Size info
+    const sizeElem = document.getElementById('kml-symbology-preview-size-text');
+    if (sizeElem) {
+      sizeElem.textContent = `${sizeDef.label} (${sizeDef.px}px)`;
     }
   }
 

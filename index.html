@@ -700,6 +700,29 @@
             <input type="color" class="form-input" id="feature-color-input" value="#06b6d4" style="height: 38px; padding: 2px;">
           </div>
 
+          <!-- Individual Point Symbology & Size (Visible for Point features) -->
+          <div class="form-group" id="feature-point-symbol-group" style="display: none;">
+            <label class="form-label">Simbología del Punto:</label>
+            <div style="display: flex; gap: 8px;">
+              <select class="form-select flex-1" id="feature-symbol-select" style="flex: 2;">
+                <option value="circle">🔵 Círculo Estándar</option>
+                <option value="pin">📍 Pin GPS / Marcador</option>
+                <option value="diamond">🔷 Rombo / Estación</option>
+                <option value="square">⏹️ Cuadrado</option>
+                <option value="triangle">🔺 Triángulo / Mojón</option>
+                <option value="cross">➕ Cruz / Mira Topográfica</option>
+                <option value="drillhole">🎯 Sondeo / Pozo Minero</option>
+                <option value="star">⭐ Estrella / Hito</option>
+                <option value="flag">🚩 Bandera / Estaca</option>
+              </select>
+              <select class="form-select" id="feature-symbol-size-select" style="flex: 1;">
+                <option value="sm">Pequeño</option>
+                <option value="md" selected>Mediano</option>
+                <option value="lg">Grande</option>
+              </select>
+            </div>
+          </div>
+
           <!-- Rich Coordinates Display Card (Point / Line / Polygon) -->
           <div id="feature-coords-card" class="feature-coords-box" style="display: none;">
             <!-- Rendered dynamically in app.js -->
@@ -946,7 +969,83 @@
                 <span>〰️ 0 Líneas</span>
                 <span>⬡ 0 Polígonos</span>
               </div>
-              <div id="kml-import-elements-list" style="max-height: 140px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; font-size: 11px; margin-bottom: 10px;"></div>
+              <div id="kml-import-elements-list" style="max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px; font-size: 11px; margin-bottom: 12px;"></div>
+
+              <!-- Point Symbology & Color Customizer Card (Shown when points exist) -->
+              <div id="kml-import-symbology-card" class="symbology-config-card" style="display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                  <div style="font-weight: 700; color: #38bdf8; font-size: 12.5px; display: flex; align-items: center; gap: 6px;">
+                    <span>🎨</span> <span>Simbología y Color de Puntos</span>
+                  </div>
+                  <span id="kml-symbology-points-badge" style="background: rgba(6, 182, 212, 0.2); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.4); font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;">
+                    0 puntos
+                  </span>
+                </div>
+
+                <!-- Live Preview on simulated field canvas -->
+                <div class="symbology-live-preview-box">
+                  <div class="symbology-preview-icon-wrapper" id="kml-symbology-preview-wrapper">
+                    <!-- Dynamic SVG preview -->
+                  </div>
+                  <div class="symbology-preview-info">
+                    <div class="symbology-preview-name" id="kml-symbology-preview-name">
+                      Círculo Estándar
+                    </div>
+                    <div class="symbology-preview-meta">
+                      <span id="kml-symbology-preview-color-pill" style="display: inline-flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.45); padding: 2px 7px; border-radius: 4px; font-family: monospace; font-size: 10px; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1);">
+                        <span id="kml-symbology-preview-color-dot" style="width: 9px; height: 9px; border-radius: 50%; background: #06b6d4; display: inline-block;"></span>
+                        <span id="kml-symbology-preview-color-hex">#06b6d4</span>
+                      </span>
+                      <span id="kml-symbology-preview-size-text" style="color: #94a3b8; font-size: 10.5px;">Mediano (18px)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 1. Shape Selection -->
+                <div class="symbology-section-title">
+                  <span>1. Tipo de Símbolo</span>
+                  <span style="font-size: 9.5px; color: #64748b;">Toque para cambiar</span>
+                </div>
+                <div class="symbology-shapes-grid" id="kml-shapes-grid">
+                  <!-- Generated dynamically in app.js -->
+                </div>
+
+                <!-- 2. Color Selection -->
+                <div class="symbology-color-options">
+                  <div class="symbology-section-title">
+                    <span>2. Color del Punto</span>
+                  </div>
+                  <div class="symbology-color-mode-toggle">
+                    <button type="button" class="symbology-mode-pill active" id="kml-color-mode-custom">
+                      🎨 Color Único
+                    </button>
+                    <button type="button" class="symbology-mode-pill" id="kml-color-mode-original">
+                      📁 Color Original KML
+                    </button>
+                  </div>
+
+                  <!-- Color Palette & Custom Picker -->
+                  <div id="kml-color-picker-container" class="symbology-colors-palette">
+                    <!-- Color chips generated in app.js -->
+                  </div>
+                  <div id="kml-color-original-notice" style="display: none; font-size: 11px; color: #cbd5e1; background: rgba(6,182,212,0.1); padding: 8px 10px; border-radius: 6px; border-left: 3px solid #06b6d4; line-height: 1.35;">
+                    ℹ️ Se respetarán los colores definidos en las etiquetas de estilo del archivo KML. Aquellos puntos sin color asignado adoptarán el color base seleccionado.
+                  </div>
+                </div>
+
+                <!-- 3. Size Selection -->
+                <div style="margin-top: 10px;">
+                  <div class="symbology-section-title">
+                    <span>3. Tamaño en Mapa</span>
+                  </div>
+                  <div class="symbology-size-segmented" id="kml-size-segmented">
+                    <button type="button" class="symbology-size-pill" data-size="sm">Pequeño (14px)</button>
+                    <button type="button" class="symbology-size-pill active" data-size="md">Mediano (18px)</button>
+                    <button type="button" class="symbology-size-pill" data-size="lg">Grande (24px)</button>
+                  </div>
+                </div>
+              </div>
+
               <button class="btn btn-success btn-block" id="btn-confirm-kml-import" style="padding: 12px; font-size: 13px; font-weight: 700; border-radius: 8px;">
                 🚀 Importar Elementos al Proyecto
               </button>
