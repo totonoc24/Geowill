@@ -1911,12 +1911,19 @@ body.nav-guidance-active .leaflet-control-zoom {
   border: 1px solid rgba(244, 63, 94, 0.35) !important;
   color: #fb7185 !important;
   padding: 6px 10px !important;
+  min-width: 36px;
+  min-height: 34px;
   border-radius: 8px !important;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-delete-project svg {
+  pointer-events: none;
 }
 
 .btn-delete-project:hover, .btn-delete-project:active {

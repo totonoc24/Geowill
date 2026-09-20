@@ -1,4 +1,4 @@
-const CACHE_NAME = 'geowill-v2.2.0';
+const CACHE_NAME = 'geowill-v2.2.4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -12,18 +12,22 @@ const ASSETS_TO_CACHE = [
   './js/georef-engine.js',
   './js/pdf-loader.js',
   './js/gps-tracker.js',
+  './js/collar-cordero-data.js',
   './js/vector-editor.js',
   './js/kml-exporter.js',
+  './js/kml-importer.js',
+  './js/navigation-stakeout.js',
   './js/map-engine.js',
   './js/app.js'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[ServiceWorker] Caching app shell');
+      console.log('[ServiceWorker] Caching app shell v2.2.4');
       return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -32,8 +36,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keyList) => {
       return Promise.all(
         keyList.map((key) => {
-          if (key !== CACHE_NAME) {
-            console.log('[ServiceWorker] Removing old cache', key);
+          if (key !== CACHE_NAME && key !== 'geoplan-tiles-cache') {
+            console.log('[ServiceWorker] Removing old cache:', key);
             return caches.delete(key);
           }
         })
@@ -43,14 +47,39 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Offline-first strategy for local assets, network-first for external tiles
+  const requestUrl = new URL(event.request.url);
+
+  // Network-First for core application files (HTML, JS, CSS) so updates appear immediately
+  const isCoreAsset = event.request.mode === 'navigate' ||
+                      requestUrl.pathname.endsWith('.html') ||
+                      requestUrl.pathname.endsWith('.js') ||
+                      requestUrl.pathname.endsWith('.css') ||
+                      requestUrl.pathname.endsWith('.json');
+
+  if (isCoreAsset) {
+    event.respondWith(
+      fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return networkResponse;
+      }).catch(() => {
+        return caches.match(event.request);
+      })
+    );
+    return;
+  }
+
+  // Cache-First for tiles, fonts and media
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
       return fetch(event.request).then((networkResponse) => {
-        // Cache tile responses dynamically if needed
         if (event.request.url.includes('tile') && networkResponse.status === 200) {
           const responseClone = networkResponse.clone();
           caches.open('geoplan-tiles-cache').then((cache) => {
@@ -59,7 +88,6 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       }).catch(() => {
-        // Return fallback if offline
         return cachedResponse;
       });
     })
