@@ -3622,31 +3622,131 @@ class GeoPlanApp {
     listElem.innerHTML = '';
 
     const projects = await window.db.getAllProjects();
-    projects.forEach(p => {
-      const isActive = this.currentProject && this.currentProject.id === p.id;
-      const card = document.createElement('div');
-      card.className = `btn btn-secondary btn-block ${isActive ? 'active' : ''}`;
-      card.style.justifyContent = 'space-between';
-      card.style.marginBottom = '8px';
-      card.innerHTML = `
-        <div style="text-align:left;">
-          <div style="font-weight:700; color:${isActive ? '#38bdf8' : '#f8fafc'}">${p.name}</div>
-          <div style="font-size:11px; color:#94a3b8;">${new Date(p.updatedAt).toLocaleDateString()}</div>
+    if (!projects || projects.length === 0) {
+      listElem.innerHTML = `
+        <div style="text-align: center; padding: 24px 12px; color: #94a3b8; font-size: 13px;">
+          <div style="font-size: 32px; margin-bottom: 8px;">📂</div>
+          No hay proyectos creados.<br>Pulsa <b>➕ Nuevo Proyecto</b> para comenzar.
         </div>
-        ${isActive ? '<span style="color:#10b981; font-size:12px;">✓ Activo</span>' : `<button class="btn btn-sm btn-primary" onclick="window.app.switchProject('${p.id}')">Abrir</button>`}
+      `;
+      document.getElementById('modal-projects-backdrop')?.classList.add('active');
+      return;
+    }
+
+    for (const p of projects) {
+      const isActive = this.currentProject && this.currentProject.id === p.id;
+      
+      let featCount = 0;
+      try {
+        const feats = await window.db.getFeaturesByProject(p.id);
+        featCount = feats ? feats.length : 0;
+      } catch (e) {
+        console.warn('Error al obtener entidades del proyecto:', e);
+      }
+
+      const card = document.createElement('div');
+      card.className = `project-item-card ${isActive ? 'active' : ''}`;
+      
+      const safeName = this._escapeHtml(p.name || 'Sin título');
+      const dateFormatted = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : (p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'Reciente');
+
+      card.innerHTML = `
+        <div class="project-card-info" onclick="window.app.switchProject('${p.id}')">
+          <div class="project-card-name">
+            <span style="font-size: 15px;">${isActive ? '📂' : '📁'}</span>
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${safeName}</span>
+          </div>
+          <div class="project-card-meta">
+            <span>📅 ${dateFormatted}</span>
+            <span>•</span>
+            <span style="color: ${featCount > 0 ? '#38bdf8' : '#64748b'};">📍 ${featCount} punto${featCount === 1 ? '' : 's'}</span>
+          </div>
+        </div>
+        <div class="project-card-actions">
+          ${isActive 
+            ? `<span style="color: #10b981; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px;">✓ Activo</span>` 
+            : `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.app.switchProject('${p.id}')" style="padding: 5px 11px; font-size: 11px; font-weight: 600;">Abrir</button>`
+          }
+          <button class="btn btn-sm btn-delete-project" onclick="event.stopPropagation(); window.app.deleteProjectPrompt('${p.id}')" title="Eliminar proyecto" aria-label="Eliminar proyecto">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+        </div>
       `;
       listElem.appendChild(card);
-    });
+    }
 
     document.getElementById('modal-projects-backdrop')?.classList.add('active');
   }
 
   async switchProject(projectId) {
+    if (this.currentProject && this.currentProject.id === projectId) {
+      document.getElementById('modal-projects-backdrop')?.classList.remove('active');
+      return;
+    }
     const p = await window.db.getProject(projectId);
     if (p) {
+      if (window.vectorEditor) window.vectorEditor.cancelDrawing();
+      if (typeof this.stopNavigation === 'function') this.stopNavigation();
       await this.setActiveProject(p);
       document.getElementById('modal-projects-backdrop')?.classList.remove('active');
       this.showToast(`Proyecto "${p.name}" activado`, 'success');
+    }
+  }
+
+  async deleteProjectPrompt(projectId) {
+    const p = await window.db.getProject(projectId);
+    if (!p) {
+      this.showToast('Proyecto no encontrado', 'error');
+      return;
+    }
+
+    const allProjects = await window.db.getAllProjects();
+    const isOnly = allProjects.length <= 1;
+    const isActive = this.currentProject && this.currentProject.id === projectId;
+
+    let confirmMsg = `¿Está seguro de que desea eliminar el proyecto "${p.name}"?\n\nEsta acción borrará de forma permanente:\n- Todos los puntos, líneas y polígonos del proyecto\n- Los planos PDF y calibraciones asociadas`;
+    
+    if (isOnly) {
+      confirmMsg += `\n\n⚠️ Este es tu único proyecto. Al eliminarlo, se creará automáticamente un nuevo proyecto en blanco.`;
+    } else if (isActive) {
+      confirmMsg += `\n\n⚠️ Este proyecto está activo actualmente. Al eliminarlo, el sistema abrirá automáticamente otro proyecto disponible.`;
+    }
+
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+
+    try {
+      if (isActive) {
+        if (window.vectorEditor) window.vectorEditor.cancelDrawing();
+        if (typeof this.stopNavigation === 'function') this.stopNavigation();
+      }
+
+      await window.db.deleteProject(projectId);
+
+      if (isActive) {
+        const remaining = await window.db.getAllProjects();
+        if (remaining.length > 0) {
+          await this.setActiveProject(remaining[0]);
+        } else {
+          const defaultProj = await window.db.saveProject({
+            name: 'Levantamiento Predial',
+            description: 'Proyecto de campo y georreferenciación'
+          });
+          await this.setActiveProject(defaultProj);
+        }
+      }
+
+      this.showToast(`Proyecto "${p.name}" eliminado`, 'success');
+      await this.openProjectsModal();
+    } catch (err) {
+      console.error('Error al eliminar proyecto:', err);
+      this.showToast('Error al eliminar el proyecto', 'error');
     }
   }
 
@@ -3661,6 +3761,16 @@ class GeoPlanApp {
       document.getElementById('modal-projects-backdrop')?.classList.remove('active');
       this.showToast(`Proyecto "${name}" creado`, 'success');
     }
+  }
+
+  _escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   /* ==========================================================================
