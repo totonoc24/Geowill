@@ -188,11 +188,6 @@ class GeoPlanApp {
       window.vectorEditor.addPointAtCurrentGps();
     });
 
-    // Toggle Google Earth Info Mode
-    document.getElementById('btn-info-mode')?.addEventListener('click', (e) => {
-      this.toggleInfoMode(e.currentTarget);
-    });
-
     // Close Info Modal on backdrop click
     document.getElementById('modal-info-backdrop')?.addEventListener('click', (e) => {
       if (e.target.id === 'modal-info-backdrop') {
@@ -419,13 +414,18 @@ class GeoPlanApp {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Get compressed jpeg
-    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    // Get compressed jpeg con calidad alta
+    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.92);
     this.tempFeaturePhotos.push(photoDataUrl);
     this._renderPhotoThumbnails();
 
+    // Guardar también en la galería de fotos del dispositivo
+    if (window.AndroidNative && typeof window.AndroidNative.savePhotoToGallery === 'function') {
+      window.AndroidNative.savePhotoToGallery(photoDataUrl, 'FOTO_CAMPO');
+    }
+
     this.closeLiveCamera();
-    this.showToast('📸 Fotografía de campo capturada con éxito', 'success');
+    this.showToast('📸 Fotografía de campo capturada y guardada en galería', 'success');
   }
 
   /* ==========================================================================
@@ -1268,6 +1268,11 @@ class GeoPlanApp {
       }
 
       this.tempFeaturePhotos.push(compressedBase64);
+
+      // Si fue tomada directamente con la cámara, asegurar guardado en la galería del dispositivo
+      if (isCameraInput && window.AndroidNative && typeof window.AndroidNative.savePhotoToGallery === 'function') {
+        window.AndroidNative.savePhotoToGallery(compressedBase64, 'FOTO_CAMPO');
+      }
     }
     this._renderPhotoThumbnails();
     e.target.value = ''; // Reset
@@ -1276,7 +1281,7 @@ class GeoPlanApp {
   /**
    * Compresses uploaded photo using createImageBitmap with EXIF orientation support
    */
-  async _compressImage(file, maxDimension = 1280, quality = 0.82) {
+  async _compressImage(file, maxDimension = 1920, quality = 0.90) {
     // Attempt 1: Modern W3C createImageBitmap with automatic EXIF orientation
     if (typeof window.createImageBitmap === 'function') {
       try {
@@ -1397,23 +1402,6 @@ class GeoPlanApp {
   /* ==========================================================================
      Google Earth Feature Info & Attribute Inspector
      ========================================================================== */
-  toggleInfoMode(btnElement) {
-    this.isInfoMode = !this.isInfoMode;
-    const btn = btnElement || document.getElementById('btn-info-mode');
-    if (this.isInfoMode) {
-      btn?.classList.add('active');
-      btn?.style.setProperty('background', 'rgba(251, 191, 36, 0.45)');
-      btn?.style.setProperty('box-shadow', '0 0 12px rgba(251, 191, 36, 0.8)');
-      this.showToast('ℹ️ Modo Información activado: toca cualquier punto para ver sus datos', 'info');
-      window.vectorEditor?.setMode('none');
-    } else {
-      btn?.classList.remove('active');
-      btn?.style.setProperty('background', 'rgba(251, 191, 36, 0.15)');
-      btn?.style.removeProperty('box-shadow');
-      this.showToast('Modo Información desactivado', 'info');
-    }
-  }
-
   async showFeatureInfo(featureOrId) {
     let feature = typeof featureOrId === 'string' ? await window.db.getFeature(featureOrId) : featureOrId;
     if (!feature) {
@@ -1433,17 +1421,6 @@ class GeoPlanApp {
       ? { ...props.extendedData }
       : {};
 
-    if (Object.keys(qualities).length === 0 && window.findCollarCorderoQualities) {
-      const cached = window.findCollarCorderoQualities(feature);
-      if (cached && Object.keys(cached).length > 0) {
-        qualities = { ...cached };
-        props.extendedData = qualities;
-        if (cached.Hole_numbe && (!props.name || props.name.startsWith('Elemento'))) {
-          props.name = cached.Hole_numbe;
-        }
-      }
-    }
-
     if (Object.keys(qualities).length === 0 && props.description) {
       const parsed = this._parseAttributesFromDescription(props.description);
       parsed.forEach(p => { qualities[p.key] = p.val; });
@@ -1459,7 +1436,7 @@ class GeoPlanApp {
         <span style="font-size: 20px;">${typeIcon}</span>
         <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
           <span style="font-weight: 700; color: #f8fafc; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">${displayName}</span>
-          <span style="font-size: 11px; color: #94a3b8; font-weight: normal;">${props.category || 'Collar_Cordero'} • ${typeLabel}</span>
+          <span style="font-size: 11px; color: #94a3b8; font-weight: normal;">${props.category || 'General'} • ${typeLabel}</span>
         </div>
       `;
     }
@@ -1678,29 +1655,35 @@ class GeoPlanApp {
   }
 
   /**
-   * Auto-upgrades existing features in the current project (e.g. Collar_Cordero drill holes)
-   * Resolves Hole_numbe names and attaches all 13 qualities permanently to IndexedDB.
+   * Sanitizes user features that may have been falsely tagged with drill hole qualities,
+   * and preserves qualities only for legitimate Collar_Cordero drill holes.
    */
   async autoUpgradeCollarCorderoFeatures() {
-    if (!this.currentProject || !window.findCollarCorderoQualities) return;
+    if (!this.currentProject) return;
     try {
       const features = await window.db.getFeaturesByProject(this.currentProject.id);
       let updatedCount = 0;
 
       for (const feat of features) {
         const props = feat.properties || {};
-        const needsQualities = !props.extendedData || Object.keys(props.extendedData).length === 0;
-        const needsName = !props.name || props.name.startsWith('Elemento');
+        const isUserPoint = props.category === 'General' || (props.name && /^Punto\s+\d+/i.test(props.name.trim()));
 
-        if (needsQualities || needsName) {
+        // Sanitización: si un punto creado por el usuario fue contaminado con atributos de pozo minero
+        if (isUserPoint && props.extendedData && (props.extendedData.Hole_numbe || props.extendedData.Mining_Tit)) {
+          feat.properties.extendedData = {};
+          await window.db.saveFeature(feat);
+          updatedCount++;
+          continue;
+        }
+
+        // Solo actualizar si es explícitamente un punto de perforación KML sin nombre resuelto
+        const needsName = props.name && props.name.startsWith('Elemento');
+        if (props.category === 'Collar_Cordero' && needsName && window.findCollarCorderoQualities) {
           const cached = window.findCollarCorderoQualities(feat);
           if (cached) {
             feat.properties.extendedData = { ...cached, ...(props.extendedData || {}) };
-            if (cached.Hole_numbe && needsName) {
+            if (cached.Hole_numbe) {
               feat.properties.name = cached.Hole_numbe;
-            }
-            if (!feat.properties.category || feat.properties.category === 'KML Importado') {
-              feat.properties.category = 'Collar_Cordero';
             }
             await window.db.saveFeature(feat);
             updatedCount++;
@@ -1709,7 +1692,7 @@ class GeoPlanApp {
       }
 
       if (updatedCount > 0) {
-        console.log(`Auto-actualizados ${updatedCount} puntos con sus cualidades de perforación.`);
+        console.log(`Puntos verificados y saneados en IndexedDB (${updatedCount} actualizados).`);
         await window.vectorEditor.loadProjectFeatures();
       }
     } catch (err) {

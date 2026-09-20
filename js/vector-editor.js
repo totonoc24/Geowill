@@ -528,21 +528,10 @@ class VectorEditor {
   _buildFeaturePopupHtml(feature) {
     const props = feature.properties || {};
 
-    // 1. Resolve qualities / extendedData (from feature.properties, or fallback to Collar_Cordero pre-indexed cache)
+    // 1. Resolve qualities / extendedData (from feature.properties)
     let qualities = props.extendedData && typeof props.extendedData === 'object' && Object.keys(props.extendedData).length > 0
       ? { ...props.extendedData }
       : {};
-
-    if (Object.keys(qualities).length === 0 && window.findCollarCorderoQualities) {
-      const cached = window.findCollarCorderoQualities(feature);
-      if (cached && Object.keys(cached).length > 0) {
-        qualities = { ...cached };
-        props.extendedData = qualities;
-        if (cached.Hole_numbe && (!props.name || props.name.startsWith('Elemento'))) {
-          props.name = cached.Hole_numbe;
-        }
-      }
-    }
 
     const displayName = props.name || qualities['Hole_numbe'] || qualities['Name'] || 'Entidad';
     const safeName = displayName.replace(/'/g, "\\'");
@@ -652,7 +641,7 @@ class VectorEditor {
           <h4 style="margin: 0; font-size: 14px; font-weight: 700; color: #f1f5f9; flex: 1; word-break: break-word;">${displayName}</h4>
         </div>
         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-          <span style="background: ${props.color || '#3b82f6'}33; color: ${props.color || '#3b82f6'}; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; border: 1px solid ${props.color || '#3b82f6'}55;">${props.category || 'Collar_Cordero'}</span>
+          <span style="background: ${props.color || '#3b82f6'}33; color: ${props.color || '#3b82f6'}; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; border: 1px solid ${props.color || '#3b82f6'}55;">${props.category || 'General'}</span>
           <span style="color: #64748b; font-size: 10px;">${typeLabel}</span>
         </div>
         ${descHtml}

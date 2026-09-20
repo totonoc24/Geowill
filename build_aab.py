@@ -31,7 +31,7 @@ if not os.path.exists(JAVA_EXE):
     JAVA_EXE = 'java'
 
 APP_NAME = 'Geowill'
-OUTPUT_AAB_NAME = 'Geowill_Android_v2.1.aab'
+OUTPUT_AAB_NAME = 'Geowill_Android_v2.1.1.aab'
 KEYSTORE_PATH = os.path.join(BASE_DIR, 'geowill_play_upload.keystore')
 KEYSTORE_PASS = 'geowill2026'
 KEY_ALIAS = 'geowill_upload'

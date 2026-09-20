@@ -25,7 +25,7 @@ if not os.path.exists(JAVA_EXE):
     JAVA_EXE = 'java'
 
 APP_NAME = 'Geowill'
-OUTPUT_APK_NAME = 'Geowill_Android_v2.1.apk'
+OUTPUT_APK_NAME = 'Geowill_Android_v2.1.1.apk'
 
 def setup_directories():
     print('[1/6] Preparando estructura de directorios...')
@@ -52,8 +52,8 @@ def create_manifest_and_resources():
     manifest_content = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.geowill"
-    android:versionCode="4"
-    android:versionName="2.1.0">
+    android:versionCode="5"
+    android:versionName="2.1.1">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="36" />
 
@@ -65,6 +65,8 @@ def create_manifest_and_resources():
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -76,6 +78,7 @@ def create_manifest_and_resources():
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
         android:hardwareAccelerated="true"
+        android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
         
         <activity
@@ -556,12 +559,16 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileInputStream;
+import java.io.OutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipEntry;
+import android.content.ContentValues;
+import android.media.MediaScannerConnection;
 
 public class MainActivity extends Activity {
     public static MainActivity instance;
@@ -866,6 +873,87 @@ public class MainActivity extends Activity {
         }
     }
 
+    public void saveImageToPublicGallery(File sourceFile, String titlePrefix) {
+        if (sourceFile == null || !sourceFile.exists() || sourceFile.length() == 0) return;
+        try {
+            String fileName = (titlePrefix != null ? titlePrefix : "GEOWILL") + "_" + System.currentTimeMillis() + ".jpg";
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            values.put(MediaStore.Images.Media.TITLE, fileName);
+            values.put(MediaStore.Images.Media.DESCRIPTION, "Fotografia de campo Geowill");
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/Geowill");
+                values.put(MediaStore.Images.Media.IS_PENDING, 1);
+            }
+
+            Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            if (uri != null) {
+                try (InputStream in = new FileInputStream(sourceFile);
+                     OutputStream out = getContentResolver().openOutputStream(uri)) {
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = in.read(buffer)) > 0) {
+                        out.write(buffer, 0, len);
+                    }
+                    out.flush();
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    values.clear();
+                    values.put(MediaStore.Images.Media.IS_PENDING, 0);
+                    getContentResolver().update(uri, values, null, null);
+                }
+
+                MediaScannerConnection.scanFile(this, new String[]{sourceFile.getAbsolutePath()}, new String[]{"image/jpeg"}, null);
+                Log.d("GeowillCamera", "Foto guardada exitosamente en la galeria publica: " + uri.toString());
+            }
+        } catch (Exception e) {
+            Log.e("GeowillCamera", "Error guardando en galeria: " + e.getMessage(), e);
+        }
+    }
+
+    public void saveBase64ImageToPublicGallery(String base64Data, String titlePrefix) {
+        if (base64Data == null || base64Data.isEmpty()) return;
+        try {
+            String cleanBase64 = base64Data;
+            if (cleanBase64.contains(",")) {
+                cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
+            }
+            byte[] bytes = Base64.decode(cleanBase64, Base64.DEFAULT);
+            String fileName = (titlePrefix != null ? titlePrefix : "GEOWILL") + "_" + System.currentTimeMillis() + ".jpg";
+
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            values.put(MediaStore.Images.Media.TITLE, fileName);
+            values.put(MediaStore.Images.Media.DESCRIPTION, "Fotografia de campo Geowill");
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/Geowill");
+                values.put(MediaStore.Images.Media.IS_PENDING, 1);
+            }
+
+            Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            if (uri != null) {
+                try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                    out.write(bytes);
+                    out.flush();
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    values.clear();
+                    values.put(MediaStore.Images.Media.IS_PENDING, 0);
+                    getContentResolver().update(uri, values, null, null);
+                }
+                Log.d("GeowillCamera", "Base64 guardado en galeria: " + uri.toString());
+            }
+        } catch (Exception e) {
+            Log.e("GeowillCamera", "Error guardando base64 en galeria: " + e.getMessage(), e);
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -873,6 +961,15 @@ public class MainActivity extends Activity {
         // 1. Handle Direct Native Camera Capture
         if (requestCode == NATIVE_CAMERA_REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK) {
+                // Guardar foto original con maxima calidad en la Galeria del telefono
+                if (cameraPhotoPath != null) {
+                    File origFile = new File(cameraPhotoPath);
+                    if (origFile.exists() && origFile.length() > 0) {
+                        saveImageToPublicGallery(origFile, "FOTO_CAMPO");
+                        Toast.makeText(this, "Foto guardada en la Galeria (DCIM/Geowill)", Toast.LENGTH_SHORT).show();
+                    }
+                }
+
                 Bitmap bmp = null;
 
                 // Attempt A: Read from created file path
@@ -881,7 +978,17 @@ public class MainActivity extends Activity {
                     if (f.exists() && f.length() > 0) {
                         try {
                             BitmapFactory.Options options = new BitmapFactory.Options();
-                            options.inSampleSize = 2; // prevent OOM
+                            options.inJustDecodeBounds = true;
+                            BitmapFactory.decodeFile(cameraPhotoPath, options);
+                            int origW = options.outWidth;
+                            int origH = options.outHeight;
+                            int targetMax = 1920;
+                            int sampleSize = 1;
+                            while (origW / (sampleSize * 2) >= targetMax || origH / (sampleSize * 2) >= targetMax) {
+                                sampleSize *= 2;
+                            }
+                            options.inJustDecodeBounds = false;
+                            options.inSampleSize = sampleSize;
                             bmp = BitmapFactory.decodeFile(cameraPhotoPath, options);
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -919,7 +1026,7 @@ public class MainActivity extends Activity {
 
                 if (bmp != null) {
                     try {
-                        // Check EXIF orientation or rotate 90 degrees clockwise (a la derecha)
+                        // Check EXIF orientation
                         int rotate = 0;
                         if (cameraPhotoPath != null) {
                             try {
@@ -937,7 +1044,6 @@ public class MainActivity extends Activity {
                             }
                         }
 
-                        // If EXIF orientation is not present or normal, rotate 90 degrees clockwise (a la derecha)
                         if (rotate == 0) {
                             rotate = 90;
                         }
@@ -954,7 +1060,7 @@ public class MainActivity extends Activity {
 
                         int w = bmp.getWidth();
                         int h = bmp.getHeight();
-                        int max = 1280;
+                        int max = 1920;
                         if (w > max || h > max) {
                             if (w > h) {
                                 h = (h * max) / w;
@@ -970,7 +1076,7 @@ public class MainActivity extends Activity {
                             }
                         }
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        bmp.compress(Bitmap.CompressFormat.JPEG, 82, baos);
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 90, baos);
                         byte[] bytes = baos.toByteArray();
                         String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
                         final String dataUrl = "data:image/jpeg;base64," + base64;
@@ -1106,8 +1212,19 @@ public class MainActivity extends Activity {
                         takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                         startActivityForResult(takePictureIntent, NATIVE_CAMERA_REQUEST_CODE);
                     } catch (Exception e) {
-                        Toast.makeText(MainActivity.this, "Error al abrir cámara: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "Error al abrir camara: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void savePhotoToGallery(final String base64Data, final String title) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    saveBase64ImageToPublicGallery(base64Data, title != null ? title : "GEOWILL");
+                    Toast.makeText(MainActivity.this, "Foto guardada en la Galeria", Toast.LENGTH_SHORT).show();
                 }
             });
         }
