@@ -1353,7 +1353,7 @@ def copy_web_assets():
     assets_dest = os.path.join(BUILD_DIR, 'assets')
     
     # Files to copy
-    files = ['index.html', 'manifest.json', 'sw.js']
+    files = ['index.html', 'tutorial_herramientas.html', 'manifest.json', 'sw.js']
     for file in files:
         src = os.path.join(BASE_DIR, file)
         if os.path.exists(src):

@@ -1,7 +1,8 @@
-const CACHE_NAME = 'geowill-v2.2.4';
+const CACHE_NAME = 'geowill-v2.2.5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './tutorial_herramientas.html',
   './manifest.json',
   './css/leaflet.css',
   './css/styles.css',

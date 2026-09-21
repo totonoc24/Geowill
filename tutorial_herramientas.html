@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tutorial Visual de Herramientas - Geowill Topografía & SIG</title>
+  <link rel="icon" type="image/png" href="assets/logo_geowill.png">
+  <style>
+    :root {
+      --bg-main: #0b1120;
+      --bg-surface: #1e293b;
+      --bg-surface-elevated: #334155;
+      --bg-surface-card: rgba(30, 41, 59, 0.7);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --border-highlight: rgba(56, 189, 248, 0.35);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-cyan: #38bdf8;
+      --accent-cyan-glow: rgba(56, 189, 248, 0.25);
+      --accent-emerald: #10b981;
+      --accent-emerald-glow: rgba(16, 185, 129, 0.25);
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      font-family: var(--font-family);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top Navigation */
+    .header-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+
+    .brand-tagline {
+      font-size: 0.75rem;
+      color: var(--accent-cyan);
+      font-weight: 600;
+      display: block;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .search-box {
+      position: relative;
+      width: 260px;
+    }
+
+    .search-box input {
+      width: 100%;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 7px 14px 7px 34px;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 3px var(--accent-cyan-glow);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      pointer-events: none;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #06b6d4);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.35);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.55);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-surface-elevated);
+      border-color: var(--border-highlight);
+    }
+
+    /* Main Layout */
+    .app-layout {
+      display: flex;
+      min-height: calc(100vh - 61px);
+    }
+
+    /* Sidebar Navigation */
+    .sidebar-nav {
+      width: 300px;
+      flex-shrink: 0;
+      background: rgba(15, 23, 42, 0.7);
+      border-right: 1px solid var(--border-color);
+      padding: 20px 14px;
+      position: sticky;
+      top: 61px;
+      height: calc(100vh - 61px);
+      overflow-y: auto;
+    }
+
+    .nav-group-title {
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin: 16px 10px 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 600;
+      transition: all 0.15s;
+      margin-bottom: 2px;
+    }
+
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      background: var(--accent-cyan-glow);
+      color: var(--accent-cyan);
+      border-left: 3px solid var(--accent-cyan);
+    }
+
+    .nav-icon {
+      font-size: 1.1rem;
+      width: 22px;
+      text-align: center;
+    }
+
+    /* Main Content Area */
+    .content-area {
+      flex: 1;
+      padding: 32px 40px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Hero Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+      border: 1px solid var(--border-highlight);
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 40px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .hero-banner::after {
+      content: "";
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.15), transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--accent-cyan);
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+
+    .hero-title {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #fff;
+      margin-bottom: 10px;
+      line-height: 1.2;
+    }
+
+    .hero-desc {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      max-width: 800px;
+      margin-bottom: 20px;
+    }
+
+    .quick-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .stat-chip {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stat-chip strong {
+      color: var(--text-primary);
+    }
+
+    /* Section Styles */
+    .tool-section {
+      margin-bottom: 56px;
+      scroll-margin-top: 80px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-tag {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--bg-surface-elevated);
+      color: var(--accent-cyan);
+    }
+
+    /* Visual Tutorial Container (Split layout: Mockup + Callout Cards) */
+    .tutorial-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 28px;
+      background: var(--bg-surface-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(8px);
+    }
+
+    @media (max-width: 960px) {
+      .tutorial-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Mobile Mockup Device Frame */
+    .device-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .device-frame {
+      width: 100%;
+      max-width: 340px;
+      background: #0f172a;
+      border: 3px solid #334155;
+      border-radius: 28px;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+      position: relative;
+      user-select: none;
+    }
+
+    .device-notch {
+      width: 120px;
+      height: 16px;
+      background: #334155;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .device-camera {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #0b1120;
+    }
+
+    .device-speaker {
+      width: 32px;
+      height: 3px;
+      border-radius: 3px;
+      background: #1e293b;
+    }
+
+    .device-screen {
+      position: relative;
+      background: #1e293b;
+      min-height: 480px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Interactive Callout Hotspot Badges */
+    .hotspot {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #0284c7;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.4), 0 4px 10px rgba(0,0,0,0.5);
+      z-index: 50;
+      transition: all 0.2s;
+      animation: pulse-ring 2.5s infinite;
+    }
+
+    .hotspot:hover, .hotspot.active {
+      transform: scale(1.25);
+      background: #38bdf8;
+      color: #0f172a;
+      box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.6);
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.6), 0 4px 10px rgba(0,0,0,0.5);
+      }
+      70% {
+        box-shadow: 0 0 0 8px rgba(56, 189, 248, 0), 0 4px 10px rgba(0,0,0,0.5);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(56, 189, 248, 0), 0 4px 10px rgba(0,0,0,0.5);
+      }
+    }
+
+    /* Explanations List */
+    .callout-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .callout-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 14px 16px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .callout-card:hover, .callout-card.highlighted {
+      background: rgba(30, 41, 59, 0.9);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 4px 16px rgba(56, 189, 248, 0.15);
+      transform: translateX(4px);
+    }
+
+    .callout-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .badge-number {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #0284c7;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .callout-card.highlighted .badge-number {
+      background: var(--accent-cyan);
+      color: #0f172a;
+    }
+
+    .callout-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .callout-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .callout-tips {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.08);
+      font-size: 0.78rem;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Step by step workflow box */
+    .workflow-box {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-top: 20px;
+    }
+
+    .workflow-title {
+      font-size: 1rem;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .workflow-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .step-item {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 14px;
+      position: relative;
+    }
+
+    .step-number {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .step-heading {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .step-text {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    /* UI Simulation Components for Mockups */
+    .sim-top-nav {
+      background: #0f172a;
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .sim-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .sim-map-area {
+      flex: 1;
+      position: relative;
+      background: #13273e;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sim-map-grid {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(56, 189, 248, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 189, 248, 0.07) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .sim-dock {
+      background: #0f172a;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 4px;
+    }
+
+    .sim-dock-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      color: #94a3b8;
+      font-size: 9px;
+      font-weight: 700;
+    }
+
+    .sim-dock-btn.active {
+      color: #38bdf8;
+    }
+
+    .sim-side-controls {
+      position: absolute;
+      right: 8px;
+      top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sim-icon-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: #fff;
+    }
+
+    /* Footer */
+    .tutorial-footer {
+      margin-top: 60px;
+      padding: 24px 0;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Print Optimization (@media print) */
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+
+      .header-nav, .sidebar-nav, .btn, .search-box, .hotspot {
+        display: none !important;
+      }
+
+      .app-layout {
+        display: block !important;
+      }
+
+      .content-area {
+        padding: 0 !important;
+        max-width: 100% !important;
+      }
+
+      .hero-banner {
+        background: #f1f5f9 !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #0f172a !important;
+        box-shadow: none !important;
+      }
+
+      .hero-title, .section-title, .callout-title, .step-heading {
+        color: #0f172a !important;
+      }
+
+      .hero-desc, .callout-desc, .step-text {
+        color: #475569 !important;
+      }
+
+      .tutorial-grid {
+        background: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        page-break-inside: avoid;
+        grid-template-columns: 300px 1fr !important;
+      }
+
+      .device-frame {
+        border-color: #cbd5e1 !important;
+        box-shadow: none !important;
+      }
+
+      .callout-card {
+        background: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #0f172a !important;
+      }
+
+      .workflow-box {
+        background: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        page-break-inside: avoid;
+      }
+
+      .step-item {
+        background: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+
+      .badge-number {
+        background: #0284c7 !important;
+        color: #ffffff !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .tool-section {
+        page-break-before: always;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header Navigation -->
+  <header class="header-nav">
+    <a href="index.html" class="brand-wrap">
+      <img src="assets/logo_geowill.png" alt="Logo Geowill" class="brand-logo">
+      <div>
+        <div class="brand-title">Geowill</div>
+        <span class="brand-tagline">Manual & Tutorial Visual de Herramientas</span>
+      </div>
+    </a>
+
+    <div class="header-actions">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="tool-search" placeholder="Buscar herramienta o función..." onkeyup="filterTools()">
+      </div>
+
+      <button class="btn btn-secondary" onclick="window.print()" title="Imprimir o Exportar en formato PDF">
+        <span>🖨️</span>
+        <span>Guardar en PDF</span>
+      </button>
+
+      <a href="index.html" class="btn btn-primary">
+        <span>🚀</span>
+        <span>Abrir Geowill App</span>
+      </a>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar-nav">
+      <div class="nav-group-title">Módulos del Sistema</div>
+      <a href="#modulo-pantalla-principal" class="nav-item active">
+        <span class="nav-icon">📱</span>
+        <span>Pantalla Principal & HUD</span>
+      </a>
+      <a href="#modulo-georreferenciacion" class="nav-item">
+        <span class="nav-icon">🗺️</span>
+        <span>Georreferenciación PDF</span>
+      </a>
+      <a href="#modulo-replanteo" class="nav-item">
+        <span class="nav-icon">🎯</span>
+        <span>Replanteo & Brújula</span>
+      </a>
+      <a href="#modulo-dibujo" class="nav-item">
+        <span class="nav-icon">✍️</span>
+        <span>Digitalización en Terreno</span>
+      </a>
+      <a href="#modulo-tracklog" class="nav-item">
+        <span class="nav-icon">🛰️</span>
+        <span>Rutas GPS (Tracklog)</span>
+      </a>
+      <a href="#modulo-kml" class="nav-item">
+        <span class="nav-icon">📥</span>
+        <span>Gestor KML / Google Earth</span>
+      </a>
+      <a href="#modulo-fichas-fotos" class="nav-item">
+        <span class="nav-icon">📸</span>
+        <span>Fichas & Fotos de Campo</span>
+      </a>
+      <a href="#modulo-mapas-proyectos" class="nav-item">
+        <span class="nav-icon">📂</span>
+        <span>Mapas Base & Proyectos</span>
+      </a>
+
+      <div class="nav-group-title">Flujos de Trabajo Rápidos</div>
+      <a href="#flujo-primer-plano" class="nav-item">
+        <span class="nav-icon">⚡</span>
+        <span>Flujo: Calibrar un Plano</span>
+      </a>
+      <a href="#flujo-replanteo-rapido" class="nav-item">
+        <span class="nav-icon">🧭</span>
+        <span>Flujo: Replantear Vértices</span>
+      </a>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+
+      <!-- Hero Banner -->
+      <section class="hero-banner">
+        <span class="hero-badge">Estación de Trabajo Móvil SIG</span>
+        <h1 class="hero-title">Guía Visual de Herramientas Geowill</h1>
+        <p class="hero-desc">
+          Aprende a dominar cada control, panel y funcionalidad de <b>Geowill</b>. Diseñado especialmente para topógrafos, ingenieros civiles, peritos catastrales y brigadas de campo que requieren precisión satelital, georreferenciación afín de planos PDF y gestión KML sin necesidad de conexión a internet.
+        </p>
+
+        <div class="quick-stats">
+          <div class="stat-chip">🌐 <strong>100% Offline:</strong> Opera en zonas remotas</div>
+          <div class="stat-chip">📐 <strong>3 Puntos GCP:</strong> Transformación Afín 2D</div>
+          <div class="stat-chip">🧭 <strong>Brújula 360°:</strong> Replanteo con Azimut</div>
+          <div class="stat-chip">🇨🇴 <strong>CRS Oficiales:</strong> WGS84, 3116 y 9377</div>
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           SECCIÓN 1: PANTALLA PRINCIPAL & HUD
+           ========================================================================= -->
+      <section id="modulo-pantalla-principal" class="tool-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span>📱</span>
+            <span>1. Interfaz Principal, HUD y Controles de Pantalla</span>
+          </h2>
+          <span class="section-tag">Vista General</span>
+        </div>
+
+        <div class="tutorial-grid">
+          <!-- Device Mockup -->
+          <div class="device-container">
+            <div class="device-frame">
+              <div class="device-notch">
+                <div class="device-speaker"></div>
+                <div class="device-camera"></div>
+              </div>
+              <div class="device-screen">
+                <!-- Sim Top Nav -->
+                <div class="sim-top-nav">
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="font-weight: 800; font-size: 11px; color: #38bdf8;">Geowill</span>
+                    <span class="sim-badge" style="background: rgba(56,189,248,0.2); color: #38bdf8; font-size: 8px;">Levantamiento</span>
+                  </div>
+                  <div style="display: flex; gap: 6px;">
+                    <div class="sim-icon-btn" style="width: 22px; height: 22px; font-size: 10px;">🔍</div>
+                    <div class="sim-badge" style="background: rgba(16,185,129,0.2); color: #10b981; font-size: 8px;">GPS ●</div>
+                    <div class="sim-icon-btn" style="width: 22px; height: 22px; font-size: 10px;">🗺️</div>
+                  </div>
+                </div>
+
+                <!-- Sim Map Area -->
+                <div class="sim-map-area" style="height: 380px;">
+                  <div class="sim-map-grid"></div>
+
+                  <!-- North Compass Widget -->
+                  <div style="position: absolute; left: 10px; top: 12px; background: rgba(15,23,42,0.85); border: 1px solid rgba(56,189,248,0.4); border-radius: 50%; width: 44px; height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <span style="font-size: 8px; font-weight: 800; color: #f43f5e;">▲ N</span>
+                    <span style="font-size: 7px; color: #94a3b8;">0°</span>
+                  </div>
+
+                  <!-- Floating HUD Coords Box -->
+                  <div style="position: absolute; left: 10px; top: 66px; background: rgba(15,23,42,0.9); border: 1px solid rgba(56,189,248,0.3); border-radius: 8px; padding: 6px 8px; font-size: 8px; line-height: 1.3; width: 105px;">
+                    <div style="color: #38bdf8; font-weight: 800; font-size: 7.5px;">WGS84 🔄</div>
+                    <div>Lat: 4.609712</div>
+                    <div>Lon: -74.081734</div>
+                    <div style="color: #10b981;">Prec: ± 2.4 m</div>
+                  </div>
+
+                  <!-- Simulated GPS Blue Circle and Arrow -->
+                  <div style="position: absolute; width: 36px; height: 36px; border-radius: 50%; background: rgba(56,189,248,0.2); border: 2px solid #38bdf8; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(56,189,248,0.6);">
+                    <div style="width: 10px; height: 10px; border-radius: 50%; background: #0284c7;"></div>
+                  </div>
+
+                  <!-- Side Controls -->
+                  <div class="sim-side-controls">
+                    <div class="sim-icon-btn" style="color: #10b981;">🎯</div>
+                    <div class="sim-icon-btn" style="color: #38bdf8;">🧭</div>
+                    <div class="sim-icon-btn">◎</div>
+                    <div class="sim-icon-btn">➤</div>
+                    <div class="sim-icon-btn" style="color: #f43f5e; font-size: 8px; font-weight: 900;">REC</div>
+                    <div class="sim-icon-btn" style="color: #06b6d4;">📍</div>
+                  </div>
+
+                  <!-- Hotspots on Mockup -->
+                  <div class="hotspot" style="left: 14px; top: 20px;" onclick="highlightCallout('call-top-nav')">1</div>
+                  <div class="hotspot" style="left: 20px; top: 78px;" onclick="highlightCallout('call-hud-coords')">2</div>
+                  <div class="hotspot" style="left: 20px; top: 22px;" onclick="highlightCallout('call-compass')">3</div>
+                  <div class="hotspot" style="right: 12px; top: 110px;" onclick="highlightCallout('call-side-controls')">4</div>
+                  <div class="hotspot" style="left: 50%; bottom: 65px; transform: translateX(-50%);" onclick="highlightCallout('call-dock')">5</div>
+                </div>
+
+                <!-- Sim Bottom Dock -->
+                <div class="sim-dock">
+                  <div class="sim-dock-btn">
+                    <span>📍</span>
+                    <span>Punto</span>
+                  </div>
+                  <div class="sim-dock-btn">
+                    <span>📏</span>
+                    <span>Línea</span>
+                  </div>
+                  <div class="sim-dock-btn">
+                    <span>⬡</span>
+                    <span>Polígono</span>
+                  </div>
+                  <div class="sim-dock-btn active">
+                    <span>🗺️</span>
+                    <span>Plano PDF</span>
+                  </div>
+                  <div class="sim-dock-btn">
+                    <span>📤</span>
+                    <span>KML</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Callout Explanations -->
+          <div class="callout-list">
+            <div class="callout-card" id="call-top-nav">
+              <div class="callout-header">
+                <div class="badge-number">1</div>
+                <div class="callout-title">Barra Superior (Top Nav)</div>
+              </div>
+              <div class="callout-desc">
+                Contiene el <strong>Gestor de Proyectos</strong> (toca el nombre para alternar entre diferentes obras), el <strong>Buscador Rápido de Puntos</strong>, el indicador en tiempo real del <strong>Estado del GPS</strong> y el selector de <strong>Capas y Mapas Base</strong>.
+              </div>
+              <div class="callout-tips">
+                💡 Consejo: Si el indicador de GPS está en verde, tienes señal satelital de alta precisión.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-hud-coords">
+              <div class="callout-header">
+                <div class="badge-number">2</div>
+                <div class="callout-title">HUD de Coordenadas & Conversor de CRS</div>
+              </div>
+              <div class="callout-desc">
+                Muestra en tiempo real la <strong>Latitud</strong>, <strong>Longitud</strong>, <strong>Altitud</strong> sobre el nivel del mar y la <strong>Precisión (m)</strong> de tu GPS. Toca sobre la caja para alternar al instante entre <strong>WGS84</strong>, <strong>EPSG:3116</strong> (Bogotá) y <strong>EPSG:9377</strong> (Origen Nacional Colombia).
+              </div>
+              <div class="callout-tips">
+                💡 Toca la tarjeta para cambiar de sistema de coordenadas al vuelo.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-compass">
+              <div class="callout-header">
+                <div class="badge-number">3</div>
+                <div class="callout-title">Brújula Flotante & Modo Rumbo Adelante (Heading-Up)</div>
+              </div>
+              <div class="callout-desc">
+                La aguja roja señala siempre el <strong>Norte Magnético / Geográfico</strong>. Al tocar la brújula, el mapa rota automáticamente según la dirección en que caminas (<em>Heading-Up</em>), permitiéndote orientarte en el terreno con naturalidad.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-side-controls">
+              <div class="callout-header">
+                <div class="badge-number">4</div>
+                <div class="callout-title">Barra Lateral de Accesos Rápidos</div>
+              </div>
+              <div class="callout-desc">
+                Acciones instantáneas a una sola mano:
+                <ul style="margin-left: 18px; margin-top: 6px; font-size: 0.83rem;">
+                  <li><strong>🎯 Replanteo:</strong> Abre la búsqueda y navegación directa a coordenadas.</li>
+                  <li><strong>◎ Centrar:</strong> Reubica la cámara sobre tu posición actual.</li>
+                  <li><strong>➤ Seguir:</strong> Mantiene la pantalla fija en tu posición mientras caminas.</li>
+                  <li><strong>🔴 REC:</strong> Inicia la grabación de trayectorias (Tracklog).</li>
+                  <li><strong>📍 Captura Rápida:</strong> Crea un punto en tus coordenadas GPS instantáneamente.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-dock">
+              <div class="callout-header">
+                <div class="badge-number">5</div>
+                <div class="callout-title">Barra Inferior de Acción (Dock)</div>
+              </div>
+              <div class="callout-desc">
+                El centro neurálgico para digitalizar y gestionar: activa el modo de dibujo de <strong>Puntos</strong>, <strong>Líneas</strong> (con distancia), <strong>Polígonos</strong> (con cálculo de área en hectáreas y m²), carga de <strong>Plano PDF</strong> y exportación a <strong>KML</strong>.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           SECCIÓN 2: GEORREFERENCIACIÓN DE PLANOS PDF
+           ========================================================================= -->
+      <section id="modulo-georreferenciacion" class="tool-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span>🗺️</span>
+            <span>2. Georreferenciación de Planos PDF en Terreno</span>
+          </h2>
+          <span class="section-tag">Transformación Afín 2D</span>
+        </div>
+
+        <div class="tutorial-grid">
+          <!-- Device Mockup: Georef Wizard -->
+          <div class="device-container">
+            <div class="device-frame">
+              <div class="device-notch">
+                <div class="device-speaker"></div>
+                <div class="device-camera"></div>
+              </div>
+              <div class="device-screen" style="background: #0f172a;">
+                <!-- Header Wizard -->
+                <div style="background: #1e293b; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                  <span style="font-weight: 800; font-size: 11px; color: #38bdf8;">🗺️ Calibrador 3 Puntos</span>
+                  <span style="font-size: 9px; color: #94a3b8;">✕ Cerrar</span>
+                </div>
+
+                <!-- GCP Tabs -->
+                <div style="display: flex; gap: 4px; padding: 6px 8px; background: #0b1120;">
+                  <div style="background: #0284c7; color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 800;">Punto 1 ✅</div>
+                  <div style="background: #334155; color: #cbd5e1; padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 800;">Punto 2 ⚠️</div>
+                  <div style="background: #334155; color: #cbd5e1; padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 800;">Punto 3 ⚠️</div>
+                  <div style="margin-left: auto; background: rgba(16,185,129,0.2); color: #10b981; padding: 4px 6px; border-radius: 6px; font-size: 9px; font-weight: 800;">🚀 Aplicar</div>
+                </div>
+
+                <!-- PDF Canvas Area -->
+                <div style="height: 240px; background: #ffffff; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                  <!-- Simulated Blueprint Drawing -->
+                  <svg width="220" height="180" viewBox="0 0 220 180" style="opacity: 0.85;">
+                    <rect x="20" y="20" width="180" height="140" fill="#f8fafc" stroke="#0284c7" stroke-width="2"/>
+                    <polygon points="35,35 185,35 150,140 35,120" fill="rgba(6,182,212,0.15)" stroke="#06b6d4" stroke-width="2"/>
+                    <line x1="35" y1="35" x2="150" y2="140" stroke="#94a3b8" stroke-dasharray="3,3"/>
+                    <text x="75" y="85" font-size="10" font-weight="bold" fill="#0f172a">LOTE MATRIZ</text>
+                    
+                    <!-- GCP Point 1 Pin -->
+                    <circle cx="35" cy="35" r="7" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
+                    <text x="45" y="32" font-size="9" font-weight="bold" fill="#ef4444">P1</text>
+                    
+                    <!-- GCP Point 2 Pin -->
+                    <circle cx="185" cy="35" r="7" fill="#f59e0b" stroke="#ffffff" stroke-width="2"/>
+                    <text x="170" y="32" font-size="9" font-weight="bold" fill="#f59e0b">P2</text>
+
+                    <!-- GCP Point 3 Pin -->
+                    <circle cx="150" cy="140" r="7" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
+                    <text x="160" y="145" font-size="9" font-weight="bold" fill="#10b981">P3</text>
+                  </svg>
+
+                  <!-- Canvas Zoom Controls Overlay -->
+                  <div style="position: absolute; right: 8px; top: 8px; background: rgba(15,23,42,0.85); border-radius: 6px; padding: 3px; display: flex; flex-direction: column; gap: 4px;">
+                    <span style="font-size: 10px; color: #fff;">➕</span>
+                    <span style="font-size: 8px; color: #38bdf8; font-weight: 800;">100%</span>
+                    <span style="font-size: 10px; color: #fff;">➖</span>
+                    <span style="font-size: 10px; color: #fff;">⛶</span>
+                  </div>
+
+                  <div class="hotspot" style="left: 45px; top: 40px;" onclick="highlightCallout('call-gcp-selection')">1</div>
+                  <div class="hotspot" style="right: 12px; top: 20px;" onclick="highlightCallout('call-gcp-zoom')">2</div>
+                </div>
+
+                <!-- Coordinate Input Panel -->
+                <div style="padding: 10px 12px; background: #1e293b; border-top: 1px solid rgba(255,255,255,0.1);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 10px; font-weight: 800; color: #38bdf8;">Punto 1 (P1)</span>
+                    <div style="display: flex; gap: 4px;">
+                      <span style="background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid #38bdf8; border-radius: 4px; padding: 2px 6px; font-size: 8.5px; font-weight: 700;">📍 Mi GPS</span>
+                      <span style="background: rgba(16,185,129,0.2); color: #10b981; border: 1px solid #10b981; border-radius: 4px; padding: 2px 6px; font-size: 8.5px; font-weight: 700;">🗺️ Mapa</span>
+                    </div>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    <div style="background: #0f172a; padding: 4px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); font-size: 9px;">
+                      <div style="color: #94a3b8; font-size: 7.5px;">Lat / Norte (Y):</div>
+                      <div style="font-weight: 700; color: #fff;">4.609712</div>
+                    </div>
+                    <div style="background: #0f172a; padding: 4px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); font-size: 9px;">
+                      <div style="color: #94a3b8; font-size: 7.5px;">Lon / Este (X):</div>
+                      <div style="font-weight: 700; color: #fff;">-74.081734</div>
+                    </div>
+                  </div>
+
+                  <div class="hotspot" style="left: 60%; bottom: 24px;" onclick="highlightCallout('call-gcp-inputs')">3</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Callouts -->
+          <div class="callout-list">
+            <div class="callout-card" id="call-gcp-selection">
+              <div class="callout-header">
+                <div class="badge-number">1</div>
+                <div class="callout-title">Marcación de Píxeles en el Plano (GCP 1, 2 y 3)</div>
+              </div>
+              <div class="callout-desc">
+                Carga cualquier archivo PDF (plano de loteo, topográfico o arquitectónico). Toca con precisión sobre 3 esquinas conocidas o vértices de la cuadrícula. Cada punto se identifica con una mira de cruz y un color característico (Rojo para P1, Amarillo para P2 y Verde para P3).
+              </div>
+              <div class="callout-tips">
+                💡 Consejo: Elige 3 puntos que formen un triángulo lo más amplio posible sobre el plano para minimizar el error angular.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-gcp-zoom">
+              <div class="callout-header">
+                <div class="badge-number">2</div>
+                <div class="callout-title">Herramientas de Zoom y Ajuste del Plano</div>
+              </div>
+              <div class="callout-desc">
+                Navega el plano con fluidez:
+                <ul style="margin-left: 18px; margin-top: 6px; font-size: 0.83rem;">
+                  <li><strong>➕ / ➖:</strong> Acercar o alejar el nivel de detalle.</li>
+                  <li><strong>⛶ (Fit):</strong> Ajusta el plano completo al tamaño de la pantalla.</li>
+                  <li><strong>1:1:</strong> Restablece la resolución nativa al 100%.</li>
+                  <li><strong>Arrastre táctil:</strong> Desplaza el plano con un solo dedo o rueda del mouse.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-gcp-inputs">
+              <div class="callout-header">
+                <div class="badge-number">3</div>
+                <div class="callout-title">Asignación de Coordenadas Terrestres</div>
+              </div>
+              <div class="callout-desc">
+                Para cada punto de control dispones de 3 formas de asignar su coordenada real:
+                <ul style="margin-left: 18px; margin-top: 6px; font-size: 0.83rem;">
+                  <li><strong>📍 Mi GPS:</strong> Asigna al instante tu coordenada satelital actual si estás parado físicamente sobre ese mojón en el terreno.</li>
+                  <li><strong>🗺️ Marcar en Mapa:</strong> Abre el mapa satelital para hacer clic en el punto visible de referencia (ej. esquina de vía o lindero).</li>
+                  <li><strong>Teclado / Tabla:</strong> Digita manualmente las coordenadas en WGS84, EPSG:3116 o EPSG:9377.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-gcp-apply">
+              <div class="callout-header">
+                <div class="badge-number">4</div>
+                <div class="callout-title">Cálculo de Matriz Afín y Error RMS</div>
+              </div>
+              <div class="callout-desc">
+                Al presionar <strong>🚀 Aplicar al Mapa</strong>, el motor matemático de Geowill calcula la rotación, escala no uniforme y traslación exacta, proyectando el plano sobre la foto satelital con el indicador de error cuadrático medio (RMS).
+              </div>
+              <div class="callout-tips">
+                💡 Una vez en el mapa, puedes ajustar la transparencia con el deslizador "Opacidad Plano".
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Workflow Box -->
+        <div class="workflow-box" id="flujo-primer-plano">
+          <div class="workflow-title">
+            <span>⚡</span>
+            <span>Paso a Paso: Cómo Georreferenciar un Plano en 4 Minutos</span>
+          </div>
+          <div class="workflow-steps">
+            <div class="step-item">
+              <div class="step-number">Paso 1</div>
+              <div class="step-heading">Cargar Plano</div>
+              <div class="step-text">Toca <strong>Plano PDF</strong> en el dock inferior y selecciona tu archivo PDF.</div>
+            </div>
+            <div class="step-item">
+              <div class="step-number">Paso 2</div>
+              <div class="step-heading">Marcar 3 Vértices</div>
+              <div class="step-text">Haz zoom y toca sobre P1, P2 y P3 en esquinas opuestas del plano.</div>
+            </div>
+            <div class="step-item">
+              <div class="step-number">Paso 3</div>
+              <div class="step-heading">Asignar Coordenadas</div>
+              <div class="step-text">Usa <strong>📍 Mi GPS</strong>, <strong>🗺️ Mapa</strong> o digita las coordenadas de la grilla.</div>
+            </div>
+            <div class="step-item">
+              <div class="step-number">Paso 4</div>
+              <div class="step-heading">Aplicar y Caminar</div>
+              <div class="step-text">Pulsa <strong>🚀 Aplicar</strong> y camina viendo tu GPS en tiempo real sobre el plano.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           SECCIÓN 3: REPLANTEO & BRÚJULA DINÁMICA
+           ========================================================================= -->
+      <section id="modulo-replanteo" class="tool-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span>🎯</span>
+            <span>3. Replanteo Topográfico y Navegación Guiada</span>
+          </h2>
+          <span class="section-tag">Navegación 360° en Vivo</span>
+        </div>
+
+        <div class="tutorial-grid">
+          <!-- Device Mockup: Stakeout HUD -->
+          <div class="device-container">
+            <div class="device-frame">
+              <div class="device-notch">
+                <div class="device-speaker"></div>
+                <div class="device-camera"></div>
+              </div>
+              <div class="device-screen" style="background: #13273e;">
+                <div class="sim-map-grid"></div>
+
+                <!-- Navigation Guidance HUD Bar -->
+                <div style="background: rgba(15, 23, 42, 0.95); border: 1px solid #10b981; border-radius: 12px; margin: 10px; padding: 8px 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981;"></span>
+                      <span style="font-size: 8px; font-weight: 800; color: #10b981;">GUIANDO A:</span>
+                      <span style="font-size: 9px; font-weight: 700; color: #fff;">Vértice V-04</span>
+                    </div>
+                    <span style="font-size: 8px; background: rgba(244,63,94,0.2); color: #f43f5e; padding: 2px 4px; border-radius: 4px; font-weight: 700;">✕ Salir</span>
+                  </div>
+
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <div style="font-size: 7px; color: #94a3b8; font-weight: 700;">DISTANCIA RESTANTE</div>
+                      <div style="font-size: 20px; font-weight: 900; color: #38bdf8; font-family: monospace; line-height: 1;">14.2 m</div>
+                      <div style="font-size: 8px; color: #cbd5e1; margin-top: 2px;">Azimut: <strong>048° NE</strong></div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <div style="text-align: right;">
+                        <div style="font-size: 7px; color: #94a3b8;">DIRECCIÓN</div>
+                        <div style="font-size: 9px; font-weight: 800; color: #f59e0b;">Gira 12° Der ➡️</div>
+                      </div>
+                      <!-- Dial Needle -->
+                      <div style="width: 38px; height: 38px; border-radius: 50%; background: #0f172a; border: 2px solid #38bdf8; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px rgba(56,189,248,0.3);">
+                        <span style="color: #10b981; font-size: 18px; transform: rotate(45deg); display: inline-block;">▲</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Visual Target Pin & Guidance Line on Map -->
+                <div style="position: absolute; left: 65%; top: 48%; transform: translate(-50%, -50%); text-align: center;">
+                  <div style="font-size: 24px; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.8));">🎯</div>
+                  <div style="background: rgba(15,23,42,0.85); border: 1px solid #10b981; border-radius: 4px; padding: 1px 4px; font-size: 8px; font-weight: 800; color: #fff;">V-04</div>
+                </div>
+
+                <!-- GPS Location dot -->
+                <div style="position: absolute; left: 30%; top: 70%; width: 14px; height: 14px; border-radius: 50%; background: #38bdf8; border: 2px solid #fff; box-shadow: 0 0 10px #38bdf8;"></div>
+
+                <!-- Line between GPS and Target -->
+                <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;">
+                  <line x1="32%" y1="71%" x2="65%" y2="52%" stroke="#10b981" stroke-width="2" stroke-dasharray="4,4"/>
+                </svg>
+
+                <div class="hotspot" style="left: 24px; top: 38px;" onclick="highlightCallout('call-hud-nav-metrics')">1</div>
+                <div class="hotspot" style="right: 28px; top: 48px;" onclick="highlightCallout('call-hud-nav-needle')">2</div>
+                <div class="hotspot" style="left: 55%; top: 58%;" onclick="highlightCallout('call-hud-nav-target')">3</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Callouts -->
+          <div class="callout-list">
+            <div class="callout-card" id="call-hud-nav-metrics">
+              <div class="callout-header">
+                <div class="badge-number">1</div>
+                <div class="callout-title">Distancia Métrica y Azimut en Tiempo Real</div>
+              </div>
+              <div class="callout-desc">
+                Calcula dinámicamente cuántos metros exactos te separan del mojón objetivo. Incluye el <strong>Azimut geodésico</strong> respecto al Norte para que puedas corroborar la dirección con una brújula física o mira topográfica.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-hud-nav-needle">
+              <div class="callout-header">
+                <div class="badge-number">2</div>
+                <div class="callout-title">Aguja Dinámica 360° y Comandos de Giro</div>
+              </div>
+              <div class="callout-desc">
+                La aguja verde gira continuamente orientándote hacia el punto. La interfaz te indica de manera intuitiva si debes <em>"Girar a la Derecha"</em>, <em>"Girar a la Izquierda"</em> o <em>"Seguir de frente"</em>. Toca la brújula si requieres invertir 180° la lectura por calibración de sensores.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-hud-nav-target">
+              <div class="callout-header">
+                <div class="badge-number">3</div>
+                <div class="callout-title">Rayo Guía Visual y Alerta de Llegada (&lt; 3m)</div>
+              </div>
+              <div class="callout-desc">
+                Una línea punteada esmeralda conecta directamente tu posición GPS con el vértice de replanteo. Cuando te encuentras a <strong>menos de 3 metros</strong> del objetivo, la aplicación activa un banner de éxito verde con vibración háptica en tu celular para confirmar la ubicación del mojón.
+              </div>
+              <div class="callout-tips">
+                💡 Busca cualquier punto del proyecto o ingresa coordenadas directas desde el botón 🎯 en la barra lateral.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Workflow Box -->
+        <div class="workflow-box" id="flujo-replanteo-rapido">
+          <div class="workflow-title">
+            <span>🧭</span>
+            <span>Paso a Paso: Cómo Replantear un Vértice en Terreno</span>
+          </div>
+          <div class="workflow-steps">
+            <div class="step-item">
+              <div class="step-number">Paso 1</div>
+              <div class="step-heading">Abrir Búsqueda</div>
+              <div class="step-text">Toca el botón <strong>🎯</strong> en la barra lateral o la lupa en la barra superior.</div>
+            </div>
+            <div class="step-item">
+              <div class="step-number">Paso 2</div>
+              <div class="step-heading">Seleccionar o Digitar</div>
+              <div class="step-text">Elige un punto de la lista (ordenados por cercanía) o digita coordenadas en X / Y.</div>
+            </div>
+            <div class="step-item">
+              <div class="step-number">Paso 3</div>
+              <div class="step-heading">Seguir la Aguja</div>
+              <div class="step-text">Camina siguiendo la orientación de la aguja verde mientras la distancia disminuye.</div>
+            </div>
+            <div class="step-item">
+              <div class="step-number">Paso 4</div>
+              <div class="step-heading">Materializar Mojón</div>
+              <div class="step-text">Al llegar a &lt; 3m, la app confirma el punto para clavar la estaca o marcar el mojón.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           SECCIÓN 4: DIGITALIZACIÓN & DIBUJO EN TERRENO
+           ========================================================================= -->
+      <section id="modulo-dibujo" class="tool-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span>✍️</span>
+            <span>4. Digitalización y Dibujo de Entidades</span>
+          </h2>
+          <span class="section-tag">Puntos, Líneas y Polígonos</span>
+        </div>
+
+        <div class="tutorial-grid">
+          <div class="device-container">
+            <div class="device-frame">
+              <div class="device-notch">
+                <div class="device-speaker"></div>
+                <div class="device-camera"></div>
+              </div>
+              <div class="device-screen" style="background: #0f172a;">
+                <!-- Drawing Active Banner -->
+                <div style="background: rgba(15,23,42,0.95); border-bottom: 2px solid #38bdf8; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div style="font-size: 8px; font-weight: 800; color: #38bdf8;">DIBUJANDO POLÍGONO</div>
+                    <div style="font-size: 11px; font-weight: 800; color: #fff;">1,450.2 m² | 0.145 ha</div>
+                  </div>
+                  <div style="display: flex; gap: 4px;">
+                    <span style="background: #334155; color: #fff; padding: 3px 6px; border-radius: 4px; font-size: 8px; font-weight: 700;">Deshacer</span>
+                    <span style="background: #10b981; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 8px; font-weight: 800;">Finalizar</span>
+                  </div>
+                </div>
+
+                <!-- Canvas Drawing Map Area -->
+                <div class="sim-map-area" style="height: 340px;">
+                  <div class="sim-map-grid"></div>
+
+                  <!-- Drawn Polygon with vertices -->
+                  <svg style="position: absolute; inset: 0; width: 100%; height: 100%;">
+                    <polygon points="50,60 220,90 190,240 70,210" fill="rgba(56,189,248,0.25)" stroke="#38bdf8" stroke-width="2.5"/>
+                    <circle cx="50" cy="60" r="5" fill="#fff" stroke="#0284c7" stroke-width="2"/>
+                    <circle cx="220" cy="90" r="5" fill="#fff" stroke="#0284c7" stroke-width="2"/>
+                    <circle cx="190" cy="240" r="5" fill="#fff" stroke="#0284c7" stroke-width="2"/>
+                    <circle cx="70" cy="210" r="5" fill="#fff" stroke="#0284c7" stroke-width="2"/>
+                  </svg>
+
+                  <!-- Dynamic labels on edges -->
+                  <div style="position: absolute; left: 120px; top: 62px; background: rgba(15,23,42,0.85); padding: 1px 4px; border-radius: 4px; font-size: 8px; color: #38bdf8; font-weight: 700;">48.5 m</div>
+                  <div style="position: absolute; right: 80px; top: 160px; background: rgba(15,23,42,0.85); padding: 1px 4px; border-radius: 4px; font-size: 8px; color: #38bdf8; font-weight: 700;">36.2 m</div>
+
+                  <div class="hotspot" style="left: 45px; top: 55px;" onclick="highlightCallout('call-draw-points')">1</div>
+                  <div class="hotspot" style="left: 120px; top: 140px;" onclick="highlightCallout('call-draw-metrics')">2</div>
+                  <div class="hotspot" style="right: 16px; top: 8px;" onclick="highlightCallout('call-draw-toolbar')">3</div>
+                </div>
+
+                <!-- Dock highlight for drawing -->
+                <div class="sim-dock">
+                  <div class="sim-dock-btn">📍 Punto</div>
+                  <div class="sim-dock-btn">📏 Línea</div>
+                  <div class="sim-dock-btn active" style="color: #38bdf8;">⬡ Polígono</div>
+                  <div class="sim-dock-btn">🗺️ Plano PDF</div>
+                  <div class="sim-dock-btn">📤 KML</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Callouts -->
+          <div class="callout-list">
+            <div class="callout-card" id="call-draw-points">
+              <div class="callout-header">
+                <div class="badge-number">1</div>
+                <div class="callout-title">Herramienta Punto (📍)</div>
+              </div>
+              <div class="callout-desc">
+                Crea vértices topográficos, mojones o hitos haciendo clic directamente en el mapa o sobre el plano PDF. Permite elegir entre <strong>9 tipos de simbología topográfica</strong>: Círculo estándar, Pin GPS, Rombo de estación, Cuadrado, Triángulo/Mojón, Cruz/Mira, Sondeo minero, Estrella o Bandera.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-draw-metrics">
+              <div class="callout-header">
+                <div class="badge-number">2</div>
+                <div class="callout-title">Cálculo Automático de Área, Perímetro y Distancias</div>
+              </div>
+              <div class="callout-desc">
+                Mientras dibujas, la barra superior actualiza en tiempo real:
+                <ul style="margin-left: 18px; margin-top: 6px; font-size: 0.83rem;">
+                  <li><strong>Línea (📏):</strong> Longitud acumulada total y distancias parciales por tramo.</li>
+                  <li><strong>Polígono (⬡):</strong> Área en <strong>metros cuadrados ($m^2$)</strong> y <strong>hectáreas ($ha$)</strong>, además del perímetro total.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-draw-toolbar">
+              <div class="callout-header">
+                <div class="badge-number">3</div>
+                <div class="callout-title">Barra de Control de Trazo en Vivo</div>
+              </div>
+              <div class="callout-desc">
+                Durante la sesión de dibujo dispones de:
+                <ul style="margin-left: 18px; margin-top: 6px; font-size: 0.83rem;">
+                  <li><strong>Deshacer:</strong> Elimina el último vértice colocado sin perder el resto del trazado.</li>
+                  <li><strong>Finalizar:</strong> Cierra el polígono o línea y abre automáticamente la ficha técnica para guardar.</li>
+                  <li><strong>Cancelar (✕):</strong> Descarta el trazado actual si te equivocaste.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           SECCIÓN 5: TRACKLOG GPS
+           ========================================================================= -->
+      <section id="modulo-tracklog" class="tool-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span>🛰️</span>
+            <span>5. Grabación de Rutas GPS (Tracklog)</span>
+          </h2>
+          <span class="section-tag">Filtro Antideriva de 5 Metros</span>
+        </div>
+
+        <div class="tutorial-grid">
+          <div class="device-container">
+            <div class="device-frame">
+              <div class="device-notch">
+                <div class="device-speaker"></div>
+                <div class="device-camera"></div>
+              </div>
+              <div class="device-screen" style="background: #13273e;">
+                <!-- Track HUD Bar -->
+                <div style="background: rgba(15,23,42,0.95); border: 1px solid #f43f5e; border-radius: 10px; margin: 10px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="width: 8px; height: 8px; border-radius: 50%; background: #f43f5e; box-shadow: 0 0 8px #f43f5e;"></span>
+                    <div style="font-size: 9px; color: #fff;">
+                      <strong style="color: #f43f5e;">REC:</strong> 00:24:18 | <span style="color: #38bdf8;">1,840 m</span> | <span style="color: #10b981;">4.5 km/h</span>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 4px;">
+                    <span style="background: #f59e0b; color: #fff; font-size: 8px; padding: 2px 6px; border-radius: 4px; font-weight: 700;">⏸️ Pausa</span>
+                    <span style="background: #f43f5e; color: #fff; font-size: 8px; padding: 2px 6px; border-radius: 4px; font-weight: 700;">⏹️ Fin</span>
+                  </div>
+                </div>
+
+                <div class="sim-map-area" style="height: 380px;">
+                  <div class="sim-map-grid"></div>
+
+                  <!-- Path line -->
+                  <svg style="position: absolute; inset: 0; width: 100%; height: 100%;">
+                    <path d="M 40 320 Q 90 280 120 200 T 220 140 T 260 60" fill="none" stroke="#f43f5e" stroke-width="3" stroke-linecap="round"/>
+                  </svg>
+
+                  <div style="position: absolute; right: 50px; top: 50px; width: 14px; height: 14px; border-radius: 50%; background: #f43f5e; border: 2px solid #fff;"></div>
+
+                  <div class="hotspot" style="left: 30px; top: 16px;" onclick="highlightCallout('call-track-hud')">1</div>
+                  <div class="hotspot" style="left: 140px; top: 160px;" onclick="highlightCallout('call-track-filter')">2</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout-list">
+            <div class="callout-card" id="call-track-hud">
+              <div class="callout-header">
+                <div class="badge-number">1</div>
+                <div class="callout-title">Barra de Estado en Vivo (Track HUD)</div>
+              </div>
+              <div class="callout-desc">
+                Registra tus recorridos a pie, en vehículo o a caballo. Muestra el <strong>cronómetro transcurrido</strong>, la <strong>distancia recorrida en metros</strong> y la <strong>velocidad instantánea (km/h)</strong>. Puedes pausar la grabación en paradas técnicas y reanudar sin registrar saltos ficticios.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-track-filter">
+              <div class="callout-header">
+                <div class="badge-number">2</div>
+                <div class="callout-title">Filtro Inteligente Antideriva de 5 Metros</div>
+              </div>
+              <div class="callout-desc">
+                Los teléfonos móviles convencionales presentan "ruido satelital" cuando te detienes. Geowill incorpora un <strong>algoritmo de tolerancia de 5 metros</strong>: únicamente añade un nuevo vértice a la ruta cuando tu desplazamiento real excede ese umbral, garantizando líneas limpias y distancias fidedignas.
+              </div>
+              <div class="callout-tips">
+                💡 Al pulsar "⏹️ Fin", la ruta se guarda con fecha, hora y estadísticas para exportar a KML.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           SECCIÓN 6: GESTOR KML & GOOGLE EARTH
+           ========================================================================= -->
+      <section id="modulo-kml" class="tool-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span>📥</span>
+            <span>6. Gestor Integral KML (Importar & Exportar)</span>
+          </h2>
+          <span class="section-tag">Compatibilidad AutoCAD & QGIS</span>
+        </div>
+
+        <div class="tutorial-grid">
+          <div class="device-container">
+            <div class="device-frame">
+              <div class="device-notch">
+                <div class="device-speaker"></div>
+                <div class="device-camera"></div>
+              </div>
+              <div class="device-screen" style="background: #0f172a; padding: 12px;">
+                <div style="font-weight: 800; font-size: 11px; color: #38bdf8; margin-bottom: 8px;">🌐 Gestor KML - Geowill</div>
+                
+                <!-- Tab switch -->
+                <div style="display: flex; gap: 4px; margin-bottom: 10px;">
+                  <div style="flex: 1; text-align: center; background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid #38bdf8; border-radius: 6px; padding: 4px; font-size: 9px; font-weight: 800;">📥 Importar</div>
+                  <div style="flex: 1; text-align: center; background: #1e293b; color: #94a3b8; border-radius: 6px; padding: 4px; font-size: 9px; font-weight: 800;">📤 Exportar</div>
+                </div>
+
+                <!-- Preview card -->
+                <div style="background: #1e293b; border: 1px solid rgba(56,189,248,0.3); border-radius: 8px; padding: 8px; font-size: 8px; margin-bottom: 8px;">
+                  <div style="font-weight: 700; color: #fff; margin-bottom: 2px;">Predio_Cordero.kml</div>
+                  <div style="color: #94a3b8;">📍 14 Puntos | 〰️ 2 Líneas | ⬡ 1 Polígono</div>
+                </div>
+
+                <!-- Symbology picker preview -->
+                <div style="background: #1e293b; border-radius: 8px; padding: 8px; font-size: 8px; margin-bottom: 12px;">
+                  <div style="color: #38bdf8; font-weight: 800; margin-bottom: 4px;">🎨 Personalizar Simbología:</div>
+                  <div style="display: flex; gap: 4px; margin-bottom: 6px;">
+                    <span style="background: #0284c7; color: #fff; padding: 2px 6px; border-radius: 4px;">🔵 Círculo</span>
+                    <span style="background: #334155; color: #cbd5e1; padding: 2px 6px; border-radius: 4px;">📍 Pin</span>
+                    <span style="background: #334155; color: #cbd5e1; padding: 2px 6px; border-radius: 4px;">🔺 Mojón</span>
+                  </div>
+                  <div style="display: flex; gap: 4px;">
+                    <span style="width: 14px; height: 14px; border-radius: 50%; background: #06b6d4; display: inline-block;"></span>
+                    <span style="width: 14px; height: 14px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+                    <span style="width: 14px; height: 14px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
+                    <span style="width: 14px; height: 14px; border-radius: 50%; background: #ef4444; display: inline-block;"></span>
+                  </div>
+                </div>
+
+                <div style="background: #10b981; color: #fff; font-weight: 800; text-align: center; padding: 8px; border-radius: 8px; font-size: 9px; box-shadow: 0 2px 8px rgba(16,185,129,0.4);">
+                  📲 Enviar por WhatsApp / Compartir
+                </div>
+
+                <div class="hotspot" style="left: 30px; top: 40px;" onclick="highlightCallout('call-kml-import')">1</div>
+                <div class="hotspot" style="left: 40px; top: 140px;" onclick="highlightCallout('call-kml-symbology')">2</div>
+                <div class="hotspot" style="left: 50%; bottom: 25px; transform: translateX(-50%);" onclick="highlightCallout('call-kml-export')">3</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout-list">
+            <div class="callout-card" id="call-kml-import">
+              <div class="callout-header">
+                <div class="badge-number">1</div>
+                <div class="callout-title">Importación Directa de Archivos KML / KMZ</div>
+              </div>
+              <div class="callout-desc">
+                Carga proyectos exportados desde <strong>AutoCAD Civil 3D</strong>, <strong>QGIS</strong>, <strong>ArcGIS</strong> o <strong>Google Earth</strong>. El analizador espacial extrae automáticamente todos los puntos de coordenadas, polilíneas de linderos y áreas prediales.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-kml-symbology">
+              <div class="callout-header">
+                <div class="badge-number">2</div>
+                <div class="callout-title">Personalización de Simbología y Color de Puntos</div>
+              </div>
+              <div class="callout-desc">
+                Antes de incorporar los puntos al mapa, puedes configurar el <strong>símbolo geométrico</strong> (mojón, pin, estación), el <strong>color temático</strong> (único o respetando el original del archivo KML) y el <strong>tamaño de visualización</strong> para garantizar legibilidad en la pantalla bajo el sol.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-kml-export">
+              <div class="callout-header">
+                <div class="badge-number">3</div>
+                <div class="callout-title">Exportación Instantánea por WhatsApp y Bluetooth</div>
+              </div>
+              <div class="callout-desc">
+                Con un solo toque, Geowill genera un archivo `.KML` estricto OGC con estructura organizada por carpetas (Puntos, Linderos, Polígonos y Fotos incrustadas), abriendo la ventana de Android para compartir al cliente o la oficina por <strong>WhatsApp</strong>, <strong>Google Drive</strong> o <strong>Gmail</strong>.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           SECCIÓN 7: FICHAS TÉCNICAS & FOTOGRAFÍAS
+           ========================================================================= -->
+      <section id="modulo-fichas-fotos" class="tool-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span>📸</span>
+            <span>7. Fichas Técnicas & Fotografías Georreferenciadas</span>
+          </h2>
+          <span class="section-tag">Evidencia Multimedia</span>
+        </div>
+
+        <div class="tutorial-grid">
+          <div class="device-container">
+            <div class="device-frame">
+              <div class="device-notch">
+                <div class="device-speaker"></div>
+                <div class="device-camera"></div>
+              </div>
+              <div class="device-screen" style="background: #0f172a; padding: 12px; overflow-y: auto;">
+                <div style="font-weight: 800; font-size: 11px; color: #fff; margin-bottom: 8px;">Ficha Técnica de la Entidad</div>
+
+                <!-- Input group -->
+                <div style="margin-bottom: 6px;">
+                  <div style="font-size: 7.5px; color: #94a3b8;">Nombre / Código:</div>
+                  <div style="background: #1e293b; padding: 4px 6px; border-radius: 4px; font-size: 9px; color: #fff; border: 1px solid rgba(255,255,255,0.1);">Mojón M-01 Norte</div>
+                </div>
+
+                <div style="margin-bottom: 6px;">
+                  <div style="font-size: 7.5px; color: #94a3b8;">Categoría:</div>
+                  <div style="background: #1e293b; padding: 4px 6px; border-radius: 4px; font-size: 9px; color: #38bdf8; border: 1px solid rgba(255,255,255,0.1);">Vértice Topográfico</div>
+                </div>
+
+                <!-- Photos Grid Simulation -->
+                <div style="margin-bottom: 8px;">
+                  <div style="font-size: 7.5px; color: #94a3b8; margin-bottom: 4px;">Fotografías Adjuntas:</div>
+                  <div style="display: flex; gap: 6px;">
+                    <div style="width: 50px; height: 50px; border-radius: 6px; background: #334155; border: 1px solid #38bdf8; display: flex; align-items: center; justify-content: center; font-size: 18px;">📷</div>
+                    <div style="width: 50px; height: 50px; border-radius: 6px; background: #334155; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px;">🏞️</div>
+                  </div>
+                </div>
+
+                <!-- Camera Actions -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                  <div style="background: #0284c7; color: #fff; text-align: center; padding: 6px; border-radius: 6px; font-size: 8px; font-weight: 700;">📷 Tomar Foto</div>
+                  <div style="background: #334155; color: #fff; text-align: center; padding: 6px; border-radius: 6px; font-size: 8px; font-weight: 700;">🖼️ Galería</div>
+                </div>
+
+                <div style="background: rgba(56,189,248,0.15); border: 1px solid #38bdf8; color: #38bdf8; text-align: center; padding: 4px; border-radius: 6px; font-size: 8px; font-weight: 700;">
+                  🎥 Visor de Cámara Completo
+                </div>
+
+                <div class="hotspot" style="left: 40px; top: 120px;" onclick="highlightCallout('call-photo-cam')">1</div>
+                <div class="hotspot" style="left: 40px; top: 170px;" onclick="highlightCallout('call-photo-lightbox')">2</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout-list">
+            <div class="callout-card" id="call-photo-cam">
+              <div class="callout-header">
+                <div class="badge-number">1</div>
+                <div class="callout-title">Captura Fotográfica Directa y Compresión Automática</div>
+              </div>
+              <div class="callout-desc">
+                Toca <strong>Tomar Foto</strong> para abrir la cámara nativa del celular o el visor de cámara en pantalla completa. Las imágenes se comprimen y redimensionan de manera inteligente para mantener alta nitidez sin saturar el almacenamiento ni ralentizar el mapa.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-photo-lightbox">
+              <div class="callout-header">
+                <div class="badge-number">2</div>
+                <div class="callout-title">Visor Lightbox: Zoom Táctil y Giro a 90°</div>
+              </div>
+              <div class="callout-desc">
+                Al tocar cualquier miniatura se despliega el <strong>Visor de Terreno a Pantalla Completa</strong>:
+                <ul style="margin-left: 18px; margin-top: 6px; font-size: 0.83rem;">
+                  <li><strong>Pinch-to-zoom:</strong> Pellizca con 2 dedos o pulsa los botones ➕/➖ para inspeccionar detalles de estacas o linderos.</li>
+                  <li><strong>Giro 90° (🔄):</strong> Corrige la orientación horizontal o vertical de la toma con un toque.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           SECCIÓN 8: MAPAS BASE & GESTOR DE PROYECTOS
+           ========================================================================= -->
+      <section id="modulo-mapas-proyectos" class="tool-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <span>📂</span>
+            <span>8. Mapas Base Satelitales y Gestor de Proyectos</span>
+          </h2>
+          <span class="section-tag">Configuración y Capas</span>
+        </div>
+
+        <div class="tutorial-grid">
+          <div class="device-container">
+            <div class="device-frame">
+              <div class="device-notch">
+                <div class="device-speaker"></div>
+                <div class="device-camera"></div>
+              </div>
+              <div class="device-screen" style="background: #0f172a; padding: 14px;">
+                <div style="font-weight: 800; font-size: 11px; color: #fff; margin-bottom: 10px;">🗺️ Selección de Mapa Base</div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                  <div style="background: rgba(56,189,248,0.2); border: 2px solid #38bdf8; border-radius: 8px; padding: 8px; text-align: center;">
+                    <div style="font-size: 18px;">🛰️</div>
+                    <div style="font-size: 8px; font-weight: 800; color: #38bdf8;">Google Híbrido</div>
+                    <div style="font-size: 6.5px; color: #94a3b8;">Satélite + Vías</div>
+                  </div>
+
+                  <div style="background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; text-align: center;">
+                    <div style="font-size: 18px;">🌍</div>
+                    <div style="font-size: 8px; font-weight: 800; color: #fff;">Google Satélite</div>
+                    <div style="font-size: 6.5px; color: #94a3b8;">Imagen Limpia HD</div>
+                  </div>
+
+                  <div style="background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; text-align: center;">
+                    <div style="font-size: 18px;">🗺️</div>
+                    <div style="font-size: 8px; font-weight: 800; color: #fff;">Google Calles</div>
+                    <div style="font-size: 6.5px; color: #94a3b8;">Mapa Vectorial</div>
+                  </div>
+
+                  <div style="background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; text-align: center;">
+                    <div style="font-size: 18px;">⛰️</div>
+                    <div style="font-size: 8px; font-weight: 800; color: #fff;">Google Relieve</div>
+                    <div style="font-size: 6.5px; color: #94a3b8;">Curvas de Nivel</div>
+                  </div>
+                </div>
+
+                <div class="hotspot" style="left: 45%; top: 60px;" onclick="highlightCallout('call-map-bases')">1</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout-list">
+            <div class="callout-card" id="call-map-bases">
+              <div class="callout-header">
+                <div class="badge-number">1</div>
+                <div class="callout-title">6 Fuentes Cartográficas y Satelitales</div>
+              </div>
+              <div class="callout-desc">
+                Alterna con un clic entre los mejores servidores mundiales de cartografía:
+                <ul style="margin-left: 18px; margin-top: 6px; font-size: 0.83rem;">
+                  <li><strong>Google Híbrido:</strong> Imágenes satelitales con nombres de carreteras y rotulación.</li>
+                  <li><strong>Google Satélite:</strong> Fotografía aérea limpia sin etiquetas.</li>
+                  <li><strong>Google Calles:</strong> Visualización vectorial ligera para cascos urbanos.</li>
+                  <li><strong>Google Relieve:</strong> Sombras de montaña y curvas de nivel topográficas.</li>
+                  <li><strong>Esri World Imagery:</strong> Excelente cobertura satelital de alta resolución en zonas rurales.</li>
+                  <li><strong>OpenStreetMap:</strong> Cartografía abierta y libre.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-projects-db">
+              <div class="callout-header">
+                <div class="badge-number">2</div>
+                <div class="callout-title">Gestión de Múltiples Obras y Proyectos Locales</div>
+              </div>
+              <div class="callout-desc">
+                Crea proyectos independientes para cada cliente o finca (ej. "Predio El Rosal", "Loteo San Juan"). Geowill aísla automáticamente los puntos, planos PDF y mediciones de cada obra para que nunca mezcles información en campo.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="tutorial-footer">
+        <div>Geowill © 2026 - Manual Técnico & Tutorial Visual</div>
+        <div>Desarrollado para Ingeniería Topográfica y Catastral</div>
+      </footer>
+
+    </main>
+  </div>
+
+  <script>
+    // Smooth scrolling & active navigation indicator
+    const navLinks = document.querySelectorAll('.sidebar-nav .nav-item');
+    const sections = document.querySelectorAll('.tool-section, .workflow-box');
+
+    window.addEventListener('scroll', () => {
+      let current = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        if (pageYOffset >= sectionTop - 120) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${current}`) {
+          link.classList.add('active');
+        }
+      });
+    });
+
+    // Interactive Callout Highlighter
+    function highlightCallout(cardId) {
+      const card = document.getElementById(cardId);
+      if (!card) return;
+
+      document.querySelectorAll('.callout-card').forEach(c => c.classList.remove('highlighted'));
+      card.classList.add('highlighted');
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // Dynamic Filter/Search
+    function filterTools() {
+      const query = document.getElementById('tool-search').value.toLowerCase().trim();
+      const cards = document.querySelectorAll('.callout-card');
+      const sections = document.querySelectorAll('.tool-section');
+
+      if (!query) {
+        cards.forEach(c => c.style.display = 'block');
+        sections.forEach(s => s.style.display = 'block');
+        return;
+      }
+
+      sections.forEach(sec => {
+        let hasMatch = false;
+        const secCards = sec.querySelectorAll('.callout-card');
+        secCards.forEach(card => {
+          const text = card.textContent.toLowerCase();
+          if (text.includes(query)) {
+            card.style.display = 'block';
+            hasMatch = true;
+          } else {
+            card.style.display = 'none';
+          }
+        });
+
+        sec.style.display = hasMatch ? 'block' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>
