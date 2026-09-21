@@ -25,7 +25,7 @@ if not os.path.exists(JAVA_EXE):
     JAVA_EXE = 'java'
 
 APP_NAME = 'Geowill'
-OUTPUT_APK_NAME = 'Geowill_Android_v2.1.1.apk'
+OUTPUT_APK_NAME = 'Geowill_Android_v2.1.2.apk'
 
 def setup_directories():
     print('[1/6] Preparando estructura de directorios...')
@@ -52,8 +52,8 @@ def create_manifest_and_resources():
     manifest_content = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.geowill"
-    android:versionCode="5"
-    android:versionName="2.1.1">
+    android:versionCode="6"
+    android:versionName="2.1.2">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="36" />
 
