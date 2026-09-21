@@ -769,10 +769,10 @@
         <span>Guardar en PDF</span>
       </button>
 
-      <a href="index.html" class="btn btn-primary">
+      <button type="button" class="btn btn-primary" onclick="if(window.parent && window.parent.app && typeof window.parent.app.closeTutorialModal === 'function'){ window.parent.app.closeTutorialModal(); } else { window.location.href='index.html'; }">
         <span>🚀</span>
-        <span>Abrir Geowill App</span>
-      </a>
+        <span>Volver al Mapa</span>
+      </button>
     </div>
   </header>
 

@@ -1933,4 +1933,26 @@ body.nav-guidance-active .leaflet-control-zoom {
   transform: scale(0.96);
 }
 
+/* ==========================================================================
+   Responsive Top Navigation & In-App Tutorial Modal
+   ========================================================================== */
+@media (max-width: 420px) {
+  .top-nav {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .nav-left, .nav-right {
+    gap: 4px;
+  }
+  .project-name-pill {
+    max-width: 65px;
+  }
+}
+
+#modal-tutorial.active {
+  opacity: 1;
+  pointer-events: auto;
+  display: flex !important;
+}
+
 

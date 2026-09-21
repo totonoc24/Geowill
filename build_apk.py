@@ -630,7 +630,16 @@ public class MainActivity extends Activity {
         // Native bridge for WhatsApp / Bluetooth / System Sharing, Direct Camera & Background Tracking
         webView.addJavascriptInterface(new AndroidBridge(this), "AndroidNative");
 
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url != null && (url.startsWith("file:///android_asset/") || url.contains(".html"))) {
+                    view.loadUrl(url);
+                    return true;
+                }
+                return false;
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {

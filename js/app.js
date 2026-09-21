@@ -308,6 +308,11 @@ class GeoPlanApp {
     document.getElementById('point-search-input')?.addEventListener('input', () => this.filterPointSearchList());
     document.getElementById('btn-stop-navigation')?.addEventListener('click', () => this.stopNavigation());
 
+    // Tutorial & User Guide Modal Controls
+    document.getElementById('btn-open-tutorial')?.addEventListener('click', () => this.openTutorialModal());
+    document.getElementById('btn-side-tutorial')?.addEventListener('click', () => this.openTutorialModal());
+    document.getElementById('btn-close-tutorial')?.addEventListener('click', () => this.closeTutorialModal());
+
     // Search filter pills
     document.querySelectorAll('#modal-point-search .filter-pill').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -426,6 +431,25 @@ class GeoPlanApp {
 
     this.closeLiveCamera();
     this.showToast('📸 Fotografía de campo capturada y guardada en galería', 'success');
+  }
+
+  /* ==========================================================================
+     Tutorial & User Guide In-App Modal
+     ========================================================================== */
+  openTutorialModal() {
+    const modal = document.getElementById('modal-tutorial');
+    if (modal) {
+      modal.style.display = 'flex';
+      modal.classList.add('active');
+    }
+  }
+
+  closeTutorialModal() {
+    const modal = document.getElementById('modal-tutorial');
+    if (modal) {
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+    }
   }
 
   /* ==========================================================================
