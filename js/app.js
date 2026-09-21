@@ -438,6 +438,10 @@ class GeoPlanApp {
      ========================================================================== */
   openTutorialModal() {
     const modal = document.getElementById('modal-tutorial');
+    const iframe = document.getElementById('tutorial-iframe');
+    if (iframe && (!iframe.getAttribute('src') || iframe.getAttribute('src') === '')) {
+      iframe.setAttribute('src', 'tutorial_herramientas.html');
+    }
     if (modal) {
       modal.style.display = 'flex';
       modal.classList.add('active');

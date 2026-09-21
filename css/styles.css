@@ -1949,6 +1949,10 @@ body.nav-guidance-active .leaflet-control-zoom {
   }
 }
 
+#modal-tutorial {
+  display: none;
+}
+
 #modal-tutorial.active {
   opacity: 1;
   pointer-events: auto;
