@@ -1,10 +1,10 @@
 @echo off
 title Compilador APK - Geowill Android GIS
 echo =====================================================================
-echo           Geowill Android - Compilador Automatico de APK (v2.1.2)
+echo           Geowill Android - Compilador Automatico de APK (v2.1.3)
 echo =====================================================================
 echo.
-echo Compilando y firmando el archivo APK de Android (Geowill v2.1.2)...
+echo Compilando y firmando el archivo APK de Android (Geowill v2.1.3)...
 echo.
 
 where py >nul 2>nul
@@ -15,5 +15,5 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 echo.
-echo Proceso finalizado. Puede enviar el archivo Geowill_Android_v2.1.2.apk por WhatsApp.
+echo Proceso finalizado. Puede enviar el archivo Geowill_Android_v2.1.3.apk por WhatsApp.
 pause

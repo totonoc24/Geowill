@@ -1420,11 +1420,37 @@ class GeoPlanApp {
   }
 
   async deleteFeatureConfirm(featureId) {
-    if (confirm('¿Está seguro de eliminar esta entidad?')) {
+    const feat = await window.db.getFeature(featureId);
+    const name = feat?.properties?.name ? `"${feat.properties.name}"` : 'esta entidad';
+
+    if (confirm(`¿Está seguro de eliminar ${name}? Esta acción no se puede deshacer.`)) {
       await window.db.deleteFeature(featureId);
       await window.vectorEditor.loadProjectFeatures();
-      this.showToast('Entidad eliminada', 'info');
+
+      if (window.mapEngine?.map) {
+        window.mapEngine.map.closePopup();
+      }
+
+      if (window.navStakeout?.activeTarget?.id === featureId) {
+        window.navStakeout.stop();
+      }
+
+      if (this.currentInfoFeature && this.currentInfoFeature.id === featureId) {
+        this.closeInfoModal();
+      }
+
+      // Si el panel de búsqueda de puntos está visible, refrescar la lista
+      const searchModal = document.getElementById('modal-point-search');
+      if (searchModal && (searchModal.style.display === 'flex' || searchModal.classList.contains('active'))) {
+        this.filterPointSearchList();
+      }
+
+      this.showToast(`Entidad ${name} eliminada con éxito`, 'info');
     }
+  }
+
+  async deleteFeatureFromSearch(featureId) {
+    await this.deleteFeatureConfirm(featureId);
   }
 
   /* ==========================================================================
@@ -1593,6 +1619,15 @@ class GeoPlanApp {
       btnNav.onclick = () => {
         this.closeInfoModal();
         this.startNavigationToFeature(feature.id);
+      };
+    }
+
+    const btnDel = document.getElementById('btn-info-delete');
+    if (btnDel) {
+      btnDel.onclick = () => {
+        const idToDelete = feature.id;
+        this.closeInfoModal();
+        this.deleteFeatureConfirm(idToDelete);
       };
     }
 
@@ -3501,7 +3536,12 @@ class GeoPlanApp {
     }
 
     // Build Cards HTML
-    container.innerHTML = '';
+    container.innerHTML = `
+      <div style="font-size: 11px; color: #94a3b8; margin-bottom: 8px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
+        <span>Mostrando <b>${items.length}</b> ${items.length === 1 ? 'entidad' : 'entidades'}</span>
+        <span style="font-size: 10px; color: #64748b;">🎯 Replanteo | 👁 Ver | 🗑 Eliminar</span>
+      </div>
+    `;
     items.forEach(item => {
       const f = item.feature;
       const props = f.properties || {};
@@ -3559,18 +3599,21 @@ class GeoPlanApp {
 
         ${props.description ? `<div style="font-size: 11px; color: #cbd5e1;">${props.description}</div>` : ''}
 
-        <div style="display: flex; gap: 6px; margin-top: 4px;">
-          <button class="btn btn-sm" style="flex: 1.4; background: #10b981; color: #ffffff; font-weight: 700; border: none; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.startNavigationToFeature('${f.id}')">
+        <div style="display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap;">
+          <button class="btn btn-sm" style="flex: 1.2; min-width: 70px; background: #10b981; color: #ffffff; font-weight: 700; border: none; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.startNavigationToFeature('${f.id}')">
             <span>🎯</span> <span>Guiar</span>
           </button>
-          <button class="btn btn-sm btn-secondary" style="flex: 1; border-radius: 6px; padding: 6px 8px;" onclick="window.app.centerOnFeatureAndCloseModal('${f.id}')">
+          <button class="btn btn-sm btn-secondary" style="flex: 1; min-width: 60px; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.centerOnFeatureAndCloseModal('${f.id}')">
             <span>👁️</span> <span>Ver</span>
           </button>
-          <button class="btn btn-sm" style="flex: 1; background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid #fbbf24; border-radius: 6px; padding: 6px 8px;" onclick="window.app.showFeatureInfoAndCloseSearch('${f.id}')">
+          <button class="btn btn-sm" style="flex: 1; min-width: 60px; background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid #fbbf24; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.showFeatureInfoAndCloseSearch('${f.id}')">
             <span>ℹ️</span> <span>Info</span>
           </button>
-          <button class="btn btn-sm btn-secondary" style="flex: 1; border-radius: 6px; padding: 6px 8px;" onclick="window.app.editFeatureAndCloseModal('${f.id}')">
+          <button class="btn btn-sm btn-secondary" style="flex: 1; min-width: 60px; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.editFeatureAndCloseModal('${f.id}')">
             <span>✏️</span> <span>Ficha</span>
+          </button>
+          <button class="btn btn-sm" style="flex: 1; min-width: 70px; background: rgba(244, 63, 94, 0.18); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.4); border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.deleteFeatureConfirm('${f.id}')" title="Eliminar entidad">
+            <span>🗑️</span> <span>Eliminar</span>
           </button>
         </div>
       `;
