@@ -25,7 +25,7 @@ if not os.path.exists(JAVA_EXE):
     JAVA_EXE = 'java'
 
 APP_NAME = 'Geowill'
-OUTPUT_APK_NAME = 'Geowill_Android_v2.1.3.apk'
+OUTPUT_APK_NAME = 'Geowill_Android_v2.1.4.apk'
 
 def setup_directories():
     print('[1/6] Preparando estructura de directorios...')
@@ -52,10 +52,10 @@ def create_manifest_and_resources():
     manifest_content = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.geowill"
-    android:versionCode="7"
-    android:versionName="2.1.3">
+    android:versionCode="9"
+    android:versionName="2.1.4">
 
-    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="36" />
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -1434,7 +1434,7 @@ def compile_and_package():
         JAVA_EXE, '-cp', R8_JAR,
         'com.android.tools.r8.D8',
         '--lib', ANDROID_JAR,
-        '--min-api', '21',
+        '--min-api', '24',
         '--output', dex_dir,
         *class_files
     ]

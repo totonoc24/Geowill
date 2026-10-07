@@ -20,7 +20,7 @@
   <!-- Local Leaflet Stylesheet -->
   <link rel="stylesheet" href="css/leaflet.css">
   <!-- Application Mobile Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=2.2.4">
+  <link rel="stylesheet" href="css/styles.css?v=2.1.4">
 </head>
 <body>
 
@@ -1105,44 +1105,169 @@
          Modal 4: Base Maps & Layers
          ==================================================================== -->
     <div class="modal-backdrop" id="modal-layers-backdrop">
-      <div class="bottom-sheet">
+      <div class="bottom-sheet" style="max-height: 88vh; display: flex; flex-direction: column;">
         <div class="sheet-handle-bar"></div>
         <div class="sheet-header">
-          <h3 class="sheet-title">🗺️ Mapa Base</h3>
-          <button class="btn btn-sm btn-secondary" onclick="document.getElementById('modal-layers-backdrop').classList.remove('active')">✕</button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">👁️</span>
+            <div>
+              <h3 class="sheet-title" style="margin: 0; font-size: 14px;">Capas y Elementos</h3>
+              <div style="font-size: 10px; color: #94a3b8;">Prender / apagar elementos y mapa base</div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-secondary" onclick="window.app.closeLayersModal()">✕</button>
         </div>
-        <div class="sheet-body">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <button class="btn btn-secondary basemap-option-card active" data-base="google_hybrid" onclick="window.app.setMapBase('google_hybrid')" style="flex-direction: column; padding: 12px 6px;">
-              <span style="font-size: 22px;">🛰️</span>
-              <span style="font-weight: 700; font-size: 12px; color: #38bdf8;">Google Híbrido</span>
-              <span style="font-size: 10px; color: #94a3b8;">Satélite + Vías/Nombres</span>
-            </button>
-            <button class="btn btn-secondary basemap-option-card" data-base="google_sat" onclick="window.app.setMapBase('google_sat')" style="flex-direction: column; padding: 12px 6px;">
-              <span style="font-size: 22px;">🌍</span>
-              <span style="font-weight: 700; font-size: 12px;">Google Satélite</span>
-              <span style="font-size: 10px; color: #94a3b8;">Imagen Limpia HD</span>
-            </button>
-            <button class="btn btn-secondary basemap-option-card" data-base="google_streets" onclick="window.app.setMapBase('google_streets')" style="flex-direction: column; padding: 12px 6px;">
-              <span style="font-size: 22px;">🗺️</span>
-              <span style="font-weight: 700; font-size: 12px;">Google Calles</span>
-              <span style="font-size: 10px; color: #94a3b8;">Mapa Vectorial</span>
-            </button>
-            <button class="btn btn-secondary basemap-option-card" data-base="google_terrain" onclick="window.app.setMapBase('google_terrain')" style="flex-direction: column; padding: 12px 6px;">
-              <span style="font-size: 22px;">⛰️</span>
-              <span style="font-weight: 700; font-size: 12px;">Google Relieve</span>
-              <span style="font-size: 10px; color: #94a3b8;">Topografía / Curvas</span>
-            </button>
-            <button class="btn btn-secondary basemap-option-card" data-base="esri_sat" onclick="window.app.setMapBase('esri_sat')" style="flex-direction: column; padding: 12px 6px;">
-              <span style="font-size: 22px;">🛰️</span>
-              <span style="font-weight: 700; font-size: 12px;">Esri Satelital</span>
-              <span style="font-size: 10px; color: #94a3b8;">World Imagery</span>
-            </button>
-            <button class="btn btn-secondary basemap-option-card" data-base="osm" onclick="window.app.setMapBase('osm')" style="flex-direction: column; padding: 12px 6px;">
-              <span style="font-size: 22px;">🌐</span>
-              <span style="font-weight: 700; font-size: 12px;">OpenStreetMap</span>
-              <span style="font-size: 10px; color: #94a3b8;">Estándar Libre</span>
-            </button>
+
+        <!-- Tabs Navigation -->
+        <div style="display: flex; gap: 6px; padding: 6px 14px 4px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.4);">
+          <button id="tab-layers-visibility" class="tab-layer-btn active" onclick="window.app.switchLayersTab('visibility')">
+            <span>👁️ Visibilidad de Capas</span>
+          </button>
+          <button id="tab-layers-basemap" class="tab-layer-btn" onclick="window.app.switchLayersTab('basemap')">
+            <span>🗺️ Mapas Base Satélite</span>
+          </button>
+        </div>
+
+        <div class="sheet-body" style="padding: 12px 14px; overflow-y: auto; flex: 1;">
+          <!-- Panel 1: Visibility Controls -->
+          <div id="panel-layers-visibility">
+            <!-- Global actions & summary bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: rgba(15,23,42,0.7); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); gap: 6px;">
+              <span id="layers-summary-count" style="font-size: 11px; font-weight: 700; color: #38bdf8;">Elementos en mapa</span>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-sm" style="background: rgba(16,185,129,0.18); color: #10b981; border: 1px solid rgba(16,185,129,0.4); padding: 5px 9px; font-size: 11px; font-weight: 700; border-radius: 6px;" onclick="window.app.showAllLayersAndElements()">
+                  👁️ Prender Todo
+                </button>
+                <button class="btn btn-sm" style="background: rgba(239,68,68,0.18); color: #f87171; border: 1px solid rgba(239,68,68,0.4); padding: 5px 9px; font-size: 11px; font-weight: 700; border-radius: 6px;" onclick="window.app.hideAllLayersAndElements()">
+                  🚫 Apagar Todo
+                </button>
+              </div>
+            </div>
+
+            <!-- Category Visibility Toggles -->
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+              <!-- 1. Rutas y Recorridos GPS -->
+              <div class="layer-category-row">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 20px;">🏃</span>
+                  <div>
+                    <div style="font-weight: 700; font-size: 13px; color: #f8fafc;">Rutas y Recorridos GPS</div>
+                    <div id="count-layer-tracks" style="font-size: 11px; color: #94a3b8;">0 trayectos registrados</div>
+                  </div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-layer-tracks" checked onchange="window.app.toggleCategoryLayer('tracks', this.checked)">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <!-- 2. Polígonos y Parcelas -->
+              <div class="layer-category-row">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 20px;">⬡</span>
+                  <div>
+                    <div style="font-weight: 700; font-size: 13px; color: #f8fafc;">Polígonos y Parcelas</div>
+                    <div id="count-layer-polygons" style="font-size: 11px; color: #94a3b8;">0 polígonos delimitados</div>
+                  </div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-layer-polygons" checked onchange="window.app.toggleCategoryLayer('polygons', this.checked)">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <!-- 3. Líneas y Linderos -->
+              <div class="layer-category-row">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 20px;">📏</span>
+                  <div>
+                    <div style="font-weight: 700; font-size: 13px; color: #f8fafc;">Líneas y Linderos</div>
+                    <div id="count-layer-lines" style="font-size: 11px; color: #94a3b8;">0 líneas trazadas</div>
+                  </div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-layer-lines" checked onchange="window.app.toggleCategoryLayer('lines', this.checked)">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <!-- 4. Puntos y Vértices -->
+              <div class="layer-category-row">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 20px;">📍</span>
+                  <div>
+                    <div style="font-weight: 700; font-size: 13px; color: #f8fafc;">Puntos y Vértices</div>
+                    <div id="count-layer-points" style="font-size: 11px; color: #94a3b8;">0 puntos guardados</div>
+                  </div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-layer-points" checked onchange="window.app.toggleCategoryLayer('points', this.checked)">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <!-- 5. Plano PDF Georreferenciado -->
+              <div class="layer-category-row">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 20px;">🗺️</span>
+                  <div>
+                    <div style="font-weight: 700; font-size: 13px; color: #f8fafc;">Plano PDF Georreferenciado</div>
+                    <div id="status-layer-pdf" style="font-size: 11px; color: #94a3b8;">Sin plano cargado</div>
+                  </div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-layer-pdf" checked onchange="window.app.togglePdfLayerVisibility(this.checked)">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Individual Elements List Accordion / Section -->
+            <div style="margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 12px; font-weight: 800; color: #cbd5e1; letter-spacing: 0.5px;">📋 ELEMENTOS INDIVIDUALES</span>
+                <span id="individual-elements-count-badge" style="font-size: 10px; color: #38bdf8;">0 elementos</span>
+              </div>
+              <div id="individual-elements-list-container" style="display: flex; flex-direction: column; gap: 6px; max-height: 230px; overflow-y: auto;">
+                <!-- Dinámicamente poblado por JavaScript -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel 2: Base Maps -->
+          <div id="panel-layers-basemap" style="display: none;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <button class="btn btn-secondary basemap-option-card active" data-base="google_hybrid" onclick="window.app.setMapBase('google_hybrid')" style="flex-direction: column; padding: 12px 6px;">
+                <span style="font-size: 22px;">🛰️</span>
+                <span style="font-weight: 700; font-size: 12px; color: #38bdf8;">Google Híbrido</span>
+                <span style="font-size: 10px; color: #94a3b8;">Satélite + Vías/Nombres</span>
+              </button>
+              <button class="btn btn-secondary basemap-option-card" data-base="google_sat" onclick="window.app.setMapBase('google_sat')" style="flex-direction: column; padding: 12px 6px;">
+                <span style="font-size: 22px;">🌍</span>
+                <span style="font-weight: 700; font-size: 12px;">Google Satélite</span>
+                <span style="font-size: 10px; color: #94a3b8;">Imagen Limpia HD</span>
+              </button>
+              <button class="btn btn-secondary basemap-option-card" data-base="google_streets" onclick="window.app.setMapBase('google_streets')" style="flex-direction: column; padding: 12px 6px;">
+                <span style="font-size: 22px;">🗺️</span>
+                <span style="font-weight: 700; font-size: 12px;">Google Calles</span>
+                <span style="font-size: 10px; color: #94a3b8;">Mapa Vectorial</span>
+              </button>
+              <button class="btn btn-secondary basemap-option-card" data-base="google_terrain" onclick="window.app.setMapBase('google_terrain')" style="flex-direction: column; padding: 12px 6px;">
+                <span style="font-size: 22px;">⛰️</span>
+                <span style="font-weight: 700; font-size: 12px;">Google Relieve</span>
+                <span style="font-size: 10px; color: #94a3b8;">Topografía / Curvas</span>
+              </button>
+              <button class="btn btn-secondary basemap-option-card" data-base="esri_sat" onclick="window.app.setMapBase('esri_sat')" style="flex-direction: column; padding: 12px 6px;">
+                <span style="font-size: 22px;">🛰️</span>
+                <span style="font-weight: 700; font-size: 12px;">Esri Satelital</span>
+                <span style="font-size: 10px; color: #94a3b8;">World Imagery</span>
+              </button>
+              <button class="btn btn-secondary basemap-option-card" data-base="osm" onclick="window.app.setMapBase('osm')" style="flex-direction: column; padding: 12px 6px;">
+                <span style="font-size: 22px;">🌐</span>
+                <span style="font-weight: 700; font-size: 12px;">OpenStreetMap</span>
+                <span style="font-size: 10px; color: #94a3b8;">Estándar Libre</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

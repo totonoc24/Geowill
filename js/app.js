@@ -60,8 +60,9 @@ class GeoPlanApp {
     };
     window.gpsTracker.start(map);
 
-    // 3. Vector Editor drawing updates
+    // 3. Vector Editor drawing updates & layer visibility updates
     window.vectorEditor.onDrawingUpdate = (state) => this._updateDrawingToolbarUI(state);
+    window.vectorEditor.onVisibilityChange = () => this.refreshLayersModalUI();
 
     // 4. Load or create initial project
     await this._loadOrCreateDefaultProject();
@@ -3566,28 +3567,32 @@ class GeoPlanApp {
           </span>`
         : '';
 
+      const isVisible = f.properties?.visible !== false && (window.vectorEditor ? window.vectorEditor.isFeatureVisible(f) : true);
+
       const card = document.createElement('div');
       card.style.cssText = `
-        background: rgba(30, 41, 59, 0.85);
+        background: ${isVisible ? 'rgba(30, 41, 59, 0.85)' : 'rgba(30, 41, 59, 0.45)'};
         backdrop-filter: blur(8px);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-left: 4px solid ${color};
+        border: 1px ${isVisible ? 'solid' : 'dashed'} ${isVisible ? 'rgba(255,255,255,0.1)' : 'rgba(239,68,68,0.3)'};
+        border-left: 4px solid ${isVisible ? color : '#64748b'};
         border-radius: 10px;
         padding: 10px 12px;
         margin-bottom: 10px;
         display: flex;
         flex-direction: column;
         gap: 6px;
+        opacity: ${isVisible ? '1' : '0.75'};
       `;
 
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
           <div>
-            <div style="font-weight: 700; font-size: 14px; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
+            <div style="font-weight: 700; font-size: 14px; color: ${isVisible ? '#f8fafc' : '#94a3b8'}; display: flex; align-items: center; gap: 6px;">
               <span>${typeIcon}</span> <span>${props.name}</span>
             </div>
-            <div style="font-size: 11px; color: #94a3b8; margin-top: 1px;">
-              ${props.category || 'General'}
+            <div style="font-size: 11px; color: #94a3b8; margin-top: 1px; display: flex; align-items: center; gap: 6px;">
+              <span>${props.category || 'General'}</span>
+              ${!isVisible ? '<span style="background: rgba(239,68,68,0.25); color: #fca5a5; font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700;">🚫 Apagado</span>' : ''}
             </div>
           </div>
           <div>${distBadge}</div>
@@ -3605,6 +3610,9 @@ class GeoPlanApp {
           </button>
           <button class="btn btn-sm btn-secondary" style="flex: 1; min-width: 60px; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.centerOnFeatureAndCloseModal('${f.id}')">
             <span>👁️</span> <span>Ver</span>
+          </button>
+          <button class="btn btn-sm" style="flex: 1; min-width: 65px; background: ${isVisible ? 'rgba(16, 185, 129, 0.16)' : 'rgba(239, 68, 68, 0.18)'}; color: ${isVisible ? '#10b981' : '#f87171'}; border: 1px solid ${isVisible ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 700;" onclick="window.app.toggleElementVisibility('${f.id}')" title="${isVisible ? 'Apagar en el mapa' : 'Prender en el mapa'}">
+            <span>${isVisible ? '👁️ ON' : '🚫 OFF'}</span>
           </button>
           <button class="btn btn-sm" style="flex: 1; min-width: 60px; background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid #fbbf24; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="window.app.showFeatureInfoAndCloseSearch('${f.id}')">
             <span>ℹ️</span> <span>Info</span>
@@ -3828,10 +3836,225 @@ class GeoPlanApp {
   }
 
   /* ==========================================================================
-     Layers Modal
+     Layers & Visibility Management System
      ========================================================================== */
   openLayersModal() {
-    document.getElementById('modal-layers-backdrop')?.classList.add('active');
+    const modal = document.getElementById('modal-layers-backdrop');
+    if (!modal) return;
+    modal.classList.add('active');
+    this.switchLayersTab('visibility');
+    this.refreshLayersModalUI();
+  }
+
+  closeLayersModal() {
+    document.getElementById('modal-layers-backdrop')?.classList.remove('active');
+  }
+
+  switchLayersTab(tabName) {
+    const tabVis = document.getElementById('tab-layers-visibility');
+    const tabBase = document.getElementById('tab-layers-basemap');
+    const panelVis = document.getElementById('panel-layers-visibility');
+    const panelBase = document.getElementById('panel-layers-basemap');
+
+    if (tabName === 'visibility') {
+      tabVis?.classList.add('active');
+      tabBase?.classList.remove('active');
+      if (panelVis) panelVis.style.display = 'block';
+      if (panelBase) panelBase.style.display = 'none';
+      this.refreshLayersModalUI();
+    } else {
+      tabBase?.classList.add('active');
+      tabVis?.classList.remove('active');
+      if (panelVis) panelVis.style.display = 'none';
+      if (panelBase) panelBase.style.display = 'block';
+    }
+  }
+
+  refreshLayersModalUI() {
+    if (!window.vectorEditor) return;
+    const counts = window.vectorEditor.getLayerCounts();
+    const cats = window.vectorEditor.categoryVisibility;
+
+    // Category checkboxes
+    const tTracks = document.getElementById('toggle-layer-tracks');
+    if (tTracks) tTracks.checked = cats.tracks !== false;
+
+    const tPolys = document.getElementById('toggle-layer-polygons');
+    if (tPolys) tPolys.checked = cats.polygons !== false;
+
+    const tLines = document.getElementById('toggle-layer-lines');
+    if (tLines) tLines.checked = cats.lines !== false;
+
+    const tPoints = document.getElementById('toggle-layer-points');
+    if (tPoints) tPoints.checked = cats.points !== false;
+
+    const tPdf = document.getElementById('toggle-layer-pdf');
+    if (tPdf) tPdf.checked = window.mapEngine?.isPdfVisible !== false;
+
+    // Subtitles & Counts
+    const lblTracks = document.getElementById('count-layer-tracks');
+    if (lblTracks) lblTracks.textContent = `${counts.tracks.visible} de ${counts.tracks.total} visibles`;
+
+    const lblPolys = document.getElementById('count-layer-polygons');
+    if (lblPolys) lblPolys.textContent = `${counts.polygons.visible} de ${counts.polygons.total} visibles`;
+
+    const lblLines = document.getElementById('count-layer-lines');
+    if (lblLines) lblLines.textContent = `${counts.lines.visible} de ${counts.lines.total} visibles`;
+
+    const lblPoints = document.getElementById('count-layer-points');
+    if (lblPoints) lblPoints.textContent = `${counts.points.visible} de ${counts.points.total} visibles`;
+
+    const statusPdf = document.getElementById('status-layer-pdf');
+    if (statusPdf) {
+      statusPdf.textContent = window.mapEngine?.currentPdfLayer 
+        ? (window.mapEngine.isPdfVisible ? 'Cargado en mapa (Visible)' : 'Cargado en mapa (Apagado)') 
+        : 'Sin plano cargado';
+    }
+
+    const summaryCount = document.getElementById('layers-summary-count');
+    if (summaryCount) {
+      summaryCount.innerHTML = `Mostrando <b>${counts.total.visible}</b> de <b>${counts.total.total}</b> elementos`;
+    }
+
+    this.renderLayersIndividualList();
+  }
+
+  async toggleCategoryLayer(categoryKey, isChecked) {
+    if (!window.vectorEditor) return;
+    await window.vectorEditor.setCategoryVisibility(categoryKey, isChecked);
+    this.refreshLayersModalUI();
+    const catNames = {
+      tracks: 'Rutas GPS',
+      polygons: 'Polígonos',
+      lines: 'Líneas',
+      points: 'Puntos'
+    };
+    this.showToast(`${catNames[categoryKey] || categoryKey}: ${isChecked ? 'Encendidos' : 'Apagados'}`, 'info');
+  }
+
+  togglePdfLayerVisibility(isChecked) {
+    if (!window.mapEngine) return;
+    window.mapEngine.togglePdfVisibility(isChecked);
+    const statusPdf = document.getElementById('status-layer-pdf');
+    if (statusPdf) {
+      statusPdf.textContent = window.mapEngine.currentPdfLayer 
+        ? (window.mapEngine.isPdfVisible ? 'Cargado en mapa (Visible)' : 'Cargado en mapa (Apagado)') 
+        : 'Sin plano cargado';
+    }
+    this.showToast(`Plano PDF: ${isChecked ? 'Encendido' : 'Apagado'}`, 'info');
+  }
+
+  async toggleElementVisibility(featureId, explicitState = null) {
+    if (!window.vectorEditor) return;
+    const isVisible = explicitState !== null 
+      ? await window.vectorEditor.setElementVisibility(featureId, explicitState)
+      : await window.vectorEditor.toggleElementVisibility(featureId);
+
+    const feat = window.vectorEditor.featuresMap.get(featureId);
+    const name = feat?.properties?.name || 'Elemento';
+
+    this.showToast(`${name}: ${isVisible ? 'Encendido en mapa' : 'Apagado del mapa'}`, isVisible ? 'success' : 'info');
+
+    this.refreshLayersModalUI();
+    if (document.getElementById('modal-point-search')?.classList.contains('active')) {
+      this.filterPointSearchList();
+    }
+  }
+
+  async showAllLayersAndElements() {
+    if (!window.vectorEditor) return;
+    await window.vectorEditor.setAllVisibility(true);
+    if (window.mapEngine) window.mapEngine.togglePdfVisibility(true);
+    this.refreshLayersModalUI();
+    if (document.getElementById('modal-point-search')?.classList.contains('active')) {
+      this.filterPointSearchList();
+    }
+    this.showToast('Todos los elementos y capas encendidos', 'success');
+  }
+
+  async hideAllLayersAndElements() {
+    if (!window.vectorEditor) return;
+    await window.vectorEditor.setAllVisibility(false);
+    if (window.mapEngine) window.mapEngine.togglePdfVisibility(false);
+    this.refreshLayersModalUI();
+    if (document.getElementById('modal-point-search')?.classList.contains('active')) {
+      this.filterPointSearchList();
+    }
+    this.showToast('Todos los elementos y capas apagados', 'info');
+  }
+
+  renderLayersIndividualList() {
+    const container = document.getElementById('individual-elements-list-container');
+    const badge = document.getElementById('individual-elements-count-badge');
+    if (!container) return;
+
+    if (!window.vectorEditor || window.vectorEditor.featuresMap.size === 0) {
+      container.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:11px; padding:12px;">No hay elementos guardados en este proyecto todavía.</div>';
+      if (badge) badge.textContent = '0 elementos';
+      return;
+    }
+
+    const items = Array.from(window.vectorEditor.featuresMap.values());
+    if (badge) badge.textContent = `${items.length} ${items.length === 1 ? 'elemento' : 'elementos'}`;
+
+    container.innerHTML = '';
+    items.forEach(feat => {
+      const props = feat.properties || {};
+      const isVisible = feat.properties?.visible !== false && window.vectorEditor.isFeatureVisible(feat);
+      const isTrack = feat.type === 'LineString' && (
+        (props.category && props.category.toLowerCase().includes('track')) ||
+        (props.name && props.name.toLowerCase().startsWith('recorrido')) ||
+        props.durationSec !== undefined
+      );
+
+      let typeIcon = '📍';
+      if (feat.type === 'Point') {
+        const sym = window.pointSymbology?.POINT_SYMBOLS[props.symbol || 'circle'];
+        typeIcon = sym ? sym.icon : '📍';
+      } else if (isTrack) {
+        typeIcon = '🏃';
+      } else if (feat.type === 'LineString') {
+        typeIcon = '📏';
+      } else if (feat.type === 'Polygon') {
+        typeIcon = '⬡';
+      }
+
+      let metricStr = '';
+      if (feat.type === 'Point' && Array.isArray(feat.coordinates)) {
+        metricStr = `${parseFloat(feat.coordinates[0]).toFixed(5)}°, ${parseFloat(feat.coordinates[1]).toFixed(5)}°`;
+      } else if (props.area) {
+        metricStr = `${(props.area / 10000).toFixed(2)} ha (${props.area.toFixed(0)} m²)`;
+      } else if (props.length) {
+        metricStr = props.length > 1000 ? `${(props.length / 1000).toFixed(2)} km` : `${props.length.toFixed(1)} m`;
+      }
+
+      const itemCard = document.createElement('div');
+      itemCard.className = `individual-element-card ${isVisible ? '' : 'is-hidden'}`;
+
+      itemCard.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+          <span style="font-size: 16px;">${typeIcon}</span>
+          <div style="overflow: hidden; flex: 1;">
+            <div style="font-size: 12px; font-weight: 700; color: ${isVisible ? '#f8fafc' : '#94a3b8'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${props.name || 'Entidad'}
+            </div>
+            <div style="font-size: 10px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${props.category || 'General'} ${metricStr ? `• ${metricStr}` : ''}
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="btn btn-sm btn-secondary" style="padding: 4px 8px; font-size: 11px; border-radius: 6px;" onclick="window.app.centerOnFeatureAndCloseModal('${feat.id}')" title="Centrar en el mapa">
+            👁️ Ver
+          </button>
+          <button class="btn btn-sm" style="padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 6px; background: ${isVisible ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}; color: ${isVisible ? '#10b981' : '#f87171'}; border: 1px solid ${isVisible ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}; min-width: 68px; display: flex; align-items: center; justify-content: center; gap: 3px;" onclick="window.app.toggleElementVisibility('${feat.id}')" title="${isVisible ? 'Apagar este elemento' : 'Prender este elemento'}">
+            <span>${isVisible ? '👁️ ON' : '🚫 OFF'}</span>
+          </button>
+        </div>
+      `;
+
+      container.appendChild(itemCard);
+    });
   }
 
   setMapBase(type) {

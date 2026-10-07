@@ -31,11 +31,11 @@ if not os.path.exists(JAVA_EXE):
     JAVA_EXE = 'java'
 
 APP_NAME = 'Geowill'
-OUTPUT_AAB_NAME = 'Geowill_Android_v2.1.3.aab'
+OUTPUT_AAB_NAME = 'Geowill_Android_v2.1.4.aab'
 KEYSTORE_PATH = os.path.join(BASE_DIR, 'geowill_play_upload.keystore')
-KEYSTORE_PASS = 'geowill2026'
-KEY_ALIAS = 'geowill_upload'
-KEY_PASS = 'geowill2026'
+KEYSTORE_PASS = os.environ.get('GEOWILL_KEYSTORE_PASS', 'geowill2026')
+KEY_ALIAS = os.environ.get('GEOWILL_KEY_ALIAS', 'geowill_upload')
+KEY_PASS = os.environ.get('GEOWILL_KEY_PASS', 'geowill2026')
 
 # Import creation functions from build_apk
 import build_apk
@@ -136,7 +136,7 @@ def compile_proto_and_bundle():
         JAVA_EXE, '-cp', R8_JAR,
         'com.android.tools.r8.D8',
         '--lib', ANDROID_JAR,
-        '--min-api', '21',
+        '--min-api', '24',
         '--output', dex_dir,
         *class_files
     ]

@@ -164,9 +164,22 @@ class VectorEditor {
     this.featureLayerGroup = null;
     this.currentEditingFeature = null;
 
+    // Feature Map & Layer tracking for element-level and category-level visibility
+    this.featuresMap = new Map(); // id -> feature
+    this.layerMap = new Map();    // id -> Leaflet Layer
+
+    // Category visibility state (Tracks, Polygons, Lines, Points)
+    this.categoryVisibility = {
+      tracks: true,
+      polygons: true,
+      lines: true,
+      points: true
+    };
+
     // Callbacks
     this.onDrawingUpdate = null;
     this.onFeatureSelected = null;
+    this.onVisibilityChange = null;
   }
 
   init(map) {
@@ -454,15 +467,75 @@ class VectorEditor {
     window.app?.openFeatureModal(newFeature, true);
   }
 
-  async loadProjectFeatures() {
+  getFeatureCategory(feature) {
+    if (!feature) return 'points';
+    if (feature.type === 'Point') return 'points';
+    if (feature.type === 'Polygon') return 'polygons';
+    if (feature.type === 'LineString') {
+      const cat = (feature.properties?.category || '').toLowerCase();
+      const name = (feature.properties?.name || '').toLowerCase();
+      if (cat.includes('track') || cat.includes('recorrido') || name.startsWith('recorrido') || feature.properties?.durationSec !== undefined) {
+        return 'tracks';
+      }
+      return 'lines';
+    }
+    return 'points';
+  }
+
+  isFeatureVisible(feature) {
+    if (!feature) return false;
+    // Check individual element visibility (default is true)
+    if (feature.properties && feature.properties.visible === false) {
+      return false;
+    }
+    // Check general category visibility
+    const cat = this.getFeatureCategory(feature);
+    if (this.categoryVisibility[cat] === false) {
+      return false;
+    }
+    return true;
+  }
+
+  async loadProjectFeatures(projectId = null) {
+    if (projectId) this.activeProjectId = projectId;
     if (!this.featureLayerGroup || !this.activeProjectId) return;
+
+    // Load persisted category visibility preferences
+    if (window.db) {
+      try {
+        const savedCats = await window.db.getSetting('layer_category_visibility');
+        if (savedCats && typeof savedCats === 'object') {
+          this.categoryVisibility = { ...this.categoryVisibility, ...savedCats };
+        }
+      } catch (e) {
+        console.warn('Error loading category visibility settings:', e);
+      }
+    }
+
     this.featureLayerGroup.clearLayers();
+    this.layerMap.clear();
+    this.featuresMap.clear();
 
     const features = await window.db.getFeaturesByProject(this.activeProjectId);
     features.forEach(feat => this.renderFeatureOnMap(feat));
+
+    if (this.onVisibilityChange) {
+      this.onVisibilityChange(this.getLayerCounts());
+    }
   }
 
   renderFeatureOnMap(feature) {
+    if (!feature || !feature.id) return;
+
+    // Remove existing layer if already tracked
+    if (this.layerMap.has(feature.id)) {
+      const existing = this.layerMap.get(feature.id);
+      if (this.featureLayerGroup.hasLayer(existing)) {
+        this.featureLayerGroup.removeLayer(existing);
+      }
+      this.layerMap.delete(feature.id);
+    }
+
     let layer = null;
     const props = feature.properties || {};
     const color = props.color || '#3b82f6';
@@ -508,16 +581,143 @@ class VectorEditor {
         }
       });
       
-      // Build Popup Content with rich feature information
+      // Build Popup Content with rich feature information & quick hide button
       const popupHtml = this._buildFeaturePopupHtml(feature);
 
       layer.bindPopup(popupHtml, {
-        maxWidth: 280,
+        maxWidth: 290,
         minWidth: 200,
         className: 'geowill-popup'
       });
-      this.featureLayerGroup.addLayer(layer);
+
+      this.featuresMap.set(feature.id, feature);
+      this.layerMap.set(feature.id, layer);
+
+      // Only add to map if currently visible
+      if (this.isFeatureVisible(feature)) {
+        this.featureLayerGroup.addLayer(layer);
+      }
     }
+  }
+
+  async setElementVisibility(featureId, isVisible) {
+    let feature = this.featuresMap.get(featureId);
+    if (!feature && window.db) {
+      feature = await window.db.getFeature(featureId);
+    }
+    if (!feature) return false;
+
+    if (!feature.properties) feature.properties = {};
+    feature.properties.visible = !!isVisible;
+
+    // Save state into IndexedDB
+    if (window.db) {
+      await window.db.saveFeature(feature);
+    }
+    this.featuresMap.set(featureId, feature);
+
+    const layer = this.layerMap.get(featureId);
+    if (layer) {
+      const shouldShow = this.isFeatureVisible(feature);
+      const isShown = this.featureLayerGroup.hasLayer(layer);
+      if (shouldShow && !isShown) {
+        this.featureLayerGroup.addLayer(layer);
+      } else if (!shouldShow && isShown) {
+        this.featureLayerGroup.removeLayer(layer);
+      }
+    }
+
+    if (this.onVisibilityChange) {
+      this.onVisibilityChange(this.getLayerCounts());
+    }
+
+    return feature.properties.visible;
+  }
+
+  async toggleElementVisibility(featureId) {
+    const feature = this.featuresMap.get(featureId);
+    const current = feature ? (feature.properties?.visible !== false) : true;
+    return await this.setElementVisibility(featureId, !current);
+  }
+
+  async setCategoryVisibility(categoryKey, isVisible) {
+    this.categoryVisibility[categoryKey] = !!isVisible;
+    if (window.db) {
+      await window.db.setSetting('layer_category_visibility', this.categoryVisibility);
+    }
+
+    this.updateAllLayersVisibility();
+
+    if (this.onVisibilityChange) {
+      this.onVisibilityChange(this.getLayerCounts());
+    }
+  }
+
+  updateAllLayersVisibility() {
+    for (const [id, feature] of this.featuresMap.entries()) {
+      const layer = this.layerMap.get(id);
+      if (!layer) continue;
+
+      const shouldShow = this.isFeatureVisible(feature);
+      const isShown = this.featureLayerGroup.hasLayer(layer);
+
+      if (shouldShow && !isShown) {
+        this.featureLayerGroup.addLayer(layer);
+      } else if (!shouldShow && isShown) {
+        this.featureLayerGroup.removeLayer(layer);
+      }
+    }
+  }
+
+  async setAllVisibility(isVisible) {
+    this.categoryVisibility.tracks = isVisible;
+    this.categoryVisibility.polygons = isVisible;
+    this.categoryVisibility.lines = isVisible;
+    this.categoryVisibility.points = isVisible;
+
+    if (window.db) {
+      await window.db.setSetting('layer_category_visibility', this.categoryVisibility);
+    }
+
+    for (const [id, feat] of this.featuresMap.entries()) {
+      if (!feat.properties) feat.properties = {};
+      feat.properties.visible = isVisible;
+      if (window.db) {
+        await window.db.saveFeature(feat);
+      }
+    }
+
+    this.updateAllLayersVisibility();
+
+    if (this.onVisibilityChange) {
+      this.onVisibilityChange(this.getLayerCounts());
+    }
+  }
+
+  getLayerCounts() {
+    const counts = {
+      tracks: { total: 0, visible: 0 },
+      polygons: { total: 0, visible: 0 },
+      lines: { total: 0, visible: 0 },
+      points: { total: 0, visible: 0 },
+      total: { total: 0, visible: 0 }
+    };
+
+    for (const [id, feat] of this.featuresMap.entries()) {
+      const cat = this.getFeatureCategory(feat);
+      if (counts[cat]) {
+        counts[cat].total++;
+        if (this.isFeatureVisible(feat)) {
+          counts[cat].visible++;
+        }
+      }
+      counts.total.total++;
+      if (this.isFeatureVisible(feat)) {
+        counts.total.visible++;
+      }
+    }
+
+    return counts;
   }
 
   /**
@@ -655,6 +855,9 @@ class VectorEditor {
           </button>
           <button class="btn btn-sm" onclick="window.app.startNavigationToFeature('${feature.id}')" style="background: rgba(16,185,129,0.25); color: #10b981; border: 1px solid #10b981; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer;">
             <span>🎯</span> <span>Guiar / Navegar hacia este Punto</span>
+          </button>
+          <button class="btn btn-sm" onclick="window.app.toggleElementVisibility('${feature.id}', false); window.mapEngine?.map?.closePopup();" style="background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer;" title="Apagar este elemento del mapa">
+            <span>👁️‍🗨️</span> <span>Ocultar del mapa</span>
           </button>
           <div style="display: flex; gap: 6px;">
             <button class="btn btn-sm btn-primary flex-1" style="flex:1; border-radius: 6px; cursor: pointer;" onclick="window.app.editFeature('${feature.id}')">Editar / Ficha</button>

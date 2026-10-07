@@ -114,6 +114,7 @@ class MapEngine {
     this.baseLayers = {};
     this.currentPdfLayer = null;
     this.pdfOpacity = 0.85;
+    this.isPdfVisible = true;
 
     // Map Heading-Up / Auto-Rotation state
     this.isHeadingUp = false;
@@ -228,7 +229,11 @@ class MapEngine {
 
     this.currentPdfLayer = L.warpedPdfLayer(renderDataUrl, georefInfo, {
       opacity: this.pdfOpacity
-    }).addTo(this.map);
+    });
+
+    if (this.isPdfVisible) {
+      this.currentPdfLayer.addTo(this.map);
+    }
 
     // Zoom to PDF bounds
     if (georefInfo.bounds) {
@@ -241,6 +246,27 @@ class MapEngine {
     if (this.currentPdfLayer) {
       this.currentPdfLayer.setOpacity(val);
     }
+  }
+
+  togglePdfVisibility(visible) {
+    if (visible === undefined) {
+      this.isPdfVisible = !this.isPdfVisible;
+    } else {
+      this.isPdfVisible = !!visible;
+    }
+
+    if (this.currentPdfLayer) {
+      if (this.isPdfVisible) {
+        if (!this.map.hasLayer(this.currentPdfLayer)) {
+          this.currentPdfLayer.addTo(this.map);
+        }
+      } else {
+        if (this.map.hasLayer(this.currentPdfLayer)) {
+          this.map.removeLayer(this.currentPdfLayer);
+        }
+      }
+    }
+    return this.isPdfVisible;
   }
 
   removePdfOverlay() {
