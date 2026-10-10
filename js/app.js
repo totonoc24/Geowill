@@ -3,6 +3,17 @@
  * Manages UI interactions, 3-point calibration wizard, photo attachments, project workflows, and events.
  */
 
+// Global early hook for Android Native Bridge
+if (!window.handleAndroidBackPressed) {
+  window.handleAndroidBackPressed = function() {
+    if (window.app && typeof window.app.handleBackNavigation === 'function') {
+      return window.app.handleBackNavigation();
+    }
+    return false;
+  };
+  window.handleBackNavigation = window.handleAndroidBackPressed;
+}
+
 class GeoPlanApp {
   constructor() {
     this.currentProject = null;
@@ -25,12 +36,15 @@ class GeoPlanApp {
     this.editingFeatureId = null;
 
     // Coordinate Systems State
-    this.currentHudCrs = 'wgs84'; // 'wgs84', 'epsg3116', 'epsg9377'
-    this.selectedWizardCrs = 'wgs84'; // 'wgs84', 'epsg3116', 'epsg9377'
+    this.currentHudCrs = 'wgs84'; // 'wgs84', 'epsg3116', 'epsg9377', 'epsg32618'
+    this.selectedWizardCrs = 'wgs84'; // 'wgs84', 'epsg3116', 'epsg9377', 'epsg32618'
 
     // Google Earth Attribute Inspector & Info Mode State
     this.isInfoMode = false;
     this.currentInfoFeature = null;
+
+    // Immediately initialize back navigation hooks
+    this._initBackNavigation();
   }
 
   async init() {
@@ -69,6 +83,7 @@ class GeoPlanApp {
 
     // 5. Setup UI Event Listeners
     this._bindEvents();
+    this._initBackNavigation();
 
     // 6. Register Service Worker for offline PWA
     this._registerServiceWorker();
@@ -196,17 +211,22 @@ class GeoPlanApp {
       }
     });
 
-    // Tap on HUD Coordinates to cycle CRS (WGS84 -> EPSG:3116 -> EPSG:9377)
+    // Tap on HUD Coordinates to cycle CRS (WGS84 -> EPSG:3116 -> EPSG:9377 -> EPSG:32618)
     document.getElementById('hud-crs-container')?.addEventListener('click', () => {
       if (this.currentHudCrs === 'wgs84') {
         this.currentHudCrs = 'epsg3116';
       } else if (this.currentHudCrs === 'epsg3116') {
         this.currentHudCrs = 'epsg9377';
+      } else if (this.currentHudCrs === 'epsg9377') {
+        this.currentHudCrs = 'epsg32618';
       } else {
         this.currentHudCrs = 'wgs84';
       }
       this._updateGpsHudUI(window.gpsTracker.currentPosition || { lat: 4.6097, lng: -74.0817, altitude: 0, accuracy: 0 });
-      const crsName = this.currentHudCrs === 'wgs84' ? 'WGS84 (Lat/Lon)' : this.currentHudCrs === 'epsg3116' ? 'EPSG:3116 (Magna Bogotá)' : 'EPSG:9377 (Origen Nacional)';
+      const crsName = this.currentHudCrs === 'wgs84' ? 'WGS84 (Lat/Lon)' 
+        : this.currentHudCrs === 'epsg3116' ? 'EPSG:3116 (Magna Bogotá)' 
+        : this.currentHudCrs === 'epsg9377' ? 'EPSG:9377 (Origen Nacional)' 
+        : 'EPSG:32618 (UTM 18N)';
       this.showToast(`Coordenadas: ${crsName}`, 'info');
     });
 
@@ -446,6 +466,7 @@ class GeoPlanApp {
     if (modal) {
       modal.style.display = 'flex';
       modal.classList.add('active');
+      try { window.history.pushState({ geowillModal: 'tutorial' }, ''); } catch (e) {}
     }
   }
 
@@ -694,6 +715,13 @@ class GeoPlanApp {
       const pt = window.georefEngine.wgs84ToEpsg9377(pos.lat, pos.lng);
       if (latElem) latElem.textContent = `${pt.norte.toFixed(1)} m`;
       if (lngElem) lngElem.textContent = `${pt.este.toFixed(1)} m`;
+    } else if (this.currentHudCrs === 'epsg32618') {
+      if (badge) badge.textContent = 'EPSG:32618 (UTM 18N)';
+      if (lbl1) lbl1.textContent = 'N:';
+      if (lbl2) lbl2.textContent = 'E:';
+      const pt = window.georefEngine.wgs84ToEpsg32618(pos.lat, pos.lng);
+      if (latElem) latElem.textContent = `${pt.norte.toFixed(1)} m`;
+      if (lngElem) lngElem.textContent = `${pt.este.toFixed(1)} m`;
     } else {
       if (badge) badge.textContent = 'WGS84';
       if (lbl1) lbl1.textContent = 'Lat:';
@@ -774,6 +802,7 @@ class GeoPlanApp {
 
     this._renderPhotoThumbnails();
     document.getElementById('modal-feature-backdrop').classList.add('active');
+    try { window.history.pushState({ geowillModal: 'feature' }, ''); } catch (e) {}
   }
 
   _renderFeatureCoordsCard(feature) {
@@ -810,6 +839,7 @@ class GeoPlanApp {
       const dmsLng = window.georefEngine ? window.georefEngine.formatDecimalToDMS(lng, false) : '';
       const magna9377 = window.georefEngine ? window.georefEngine.wgs84ToEpsg9377(lat, lng) : null;
       const magna3116 = window.georefEngine ? window.georefEngine.wgs84ToEpsg3116(lat, lng) : null;
+      const utm32618 = window.georefEngine ? window.georefEngine.wgs84ToEpsg32618(lat, lng) : null;
 
       const currentGps = window.gpsTracker?.currentPosition;
       const alt = feature.properties?.altitude !== undefined ? feature.properties.altitude : currentGps?.altitude;
@@ -869,6 +899,20 @@ class GeoPlanApp {
             </div>
           `;
           copyText = `EPSG:3116 -> N: ${n}, E: ${e}`;
+        } else if (sys === 'epsg32618') {
+          const n = utm32618 ? utm32618.norte.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m' : '--';
+          const e = utm32618 ? utm32618.este.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m' : '--';
+          displayHtml = `
+            <div class="coords-val-box">
+              <span class="coords-val-label">Norte (N) - UTM 18N</span>
+              <span class="coords-val-text highlight">${n}</span>
+            </div>
+            <div class="coords-val-box">
+              <span class="coords-val-label">Este (E) - UTM 18N</span>
+              <span class="coords-val-text highlight">${e}</span>
+            </div>
+          `;
+          copyText = `EPSG:32618 (UTM 18N) -> N: ${n}, E: ${e}`;
         }
 
         coordsCard.innerHTML = `
@@ -886,6 +930,7 @@ class GeoPlanApp {
             <button type="button" class="coords-pill ${sys === 'dms' ? 'active' : ''}" data-sys="dms">DMS</button>
             <button type="button" class="coords-pill ${sys === 'epsg9377' ? 'active' : ''}" data-sys="epsg9377">Magna 9377</button>
             <button type="button" class="coords-pill ${sys === 'epsg3116' ? 'active' : ''}" data-sys="epsg3116">Magna 3116</button>
+            <button type="button" class="coords-pill ${sys === 'epsg32618' ? 'active' : ''}" data-sys="epsg32618">UTM 18N</button>
           </div>
 
           <div class="coords-display-single">
@@ -977,6 +1022,7 @@ class GeoPlanApp {
     this.currentFeatureDraft = null;
     this.editingFeatureId = null;
     this.tempFeaturePhotos = [];
+    this._returnToInfoFeatureId = null;
   }
 
   _renderPhotoThumbnails() {
@@ -1088,6 +1134,10 @@ class GeoPlanApp {
 
     modal.style.display = 'flex';
     modal.classList.add('active');
+
+    try {
+      window.history.pushState({ geowillModal: 'photo-lightbox' }, '');
+    } catch (e) {}
 
     // Initialize gesture listeners and reset zoom to 1.0x
     this.initLightboxGestures();
@@ -1409,6 +1459,7 @@ class GeoPlanApp {
     await window.db.saveFeature(featureToSave);
     await window.vectorEditor.loadProjectFeatures();
 
+    this._returnToInfoFeatureId = null;
     this.closeFeatureModal();
     this.showToast('Entidad guardada correctamente', 'success');
   }
@@ -1610,6 +1661,7 @@ class GeoPlanApp {
     const btnEdit = document.getElementById('btn-info-edit');
     if (btnEdit) {
       btnEdit.onclick = () => {
+        this._returnToInfoFeatureId = feature.id;
         this.closeInfoModal();
         this.editFeature(feature.id);
       };
@@ -1633,6 +1685,7 @@ class GeoPlanApp {
     }
 
     modal.classList.add('active');
+    try { window.history.pushState({ geowillModal: 'info' }, ''); } catch (e) {}
   }
 
   closeInfoModal() {
@@ -2170,6 +2223,12 @@ class GeoPlanApp {
         if (inp1) inp1.placeholder = 'ej. 2000000.00';
         if (inp2) inp2.placeholder = 'ej. 5000000.00';
         if (hint) hint.textContent = 'Metros (MAGNA Origen Nal.)';
+      } else if (this.selectedWizardCrs === 'epsg32618') {
+        if (lbl1) lbl1.textContent = 'Coordenada Norte (Y en metros - UTM 18N):';
+        if (lbl2) lbl2.textContent = 'Coordenada Este (X en metros - UTM 18N):';
+        if (inp1) inp1.placeholder = 'ej. 509800.00';
+        if (inp2) inp2.placeholder = 'ej. 600000.00';
+        if (hint) hint.textContent = 'Metros (UTM Zona 18N)';
       } else {
         if (lbl1) lbl1.textContent = 'Latitud (WGS84 o DMS):';
         if (lbl2) lbl2.textContent = 'Longitud (WGS84 o DMS):';
@@ -2299,6 +2358,11 @@ class GeoPlanApp {
         if (lbl2) lbl2.textContent = 'Este (X en metros - Origen Nal.):';
         if (inp1) inp1.placeholder = 'ej. 2000000.00';
         if (inp2) inp2.placeholder = 'ej. 5000000.00';
+      } else if (crs === 'epsg32618') {
+        if (lbl1) lbl1.textContent = 'Norte (Y en metros - UTM 18N):';
+        if (lbl2) lbl2.textContent = 'Este (X en metros - UTM 18N):';
+        if (inp1) inp1.placeholder = 'ej. 509800.00';
+        if (inp2) inp2.placeholder = 'ej. 600000.00';
       } else {
         if (lbl1) lbl1.textContent = 'Latitud (WGS84 / DMS):';
         if (lbl2) lbl2.textContent = 'Longitud (WGS84 / DMS):';
@@ -2313,6 +2377,10 @@ class GeoPlanApp {
           if (inp2) inp2.value = pt.este.toFixed(2);
         } else if (crs === 'epsg9377') {
           const pt = window.georefEngine.wgs84ToEpsg9377(gcp.lat, gcp.lng);
+          if (inp1) inp1.value = pt.norte.toFixed(2);
+          if (inp2) inp2.value = pt.este.toFixed(2);
+        } else if (crs === 'epsg32618') {
+          const pt = window.georefEngine.wgs84ToEpsg32618(gcp.lat, gcp.lng);
           if (inp1) inp1.value = pt.norte.toFixed(2);
           if (inp2) inp2.value = pt.este.toFixed(2);
         } else {
@@ -2624,6 +2692,10 @@ class GeoPlanApp {
           this.selectedWizardCrs = 'epsg3116';
           const sel = document.getElementById('wizard-crs-select');
           if (sel) sel.value = 'epsg3116';
+        } else if (loadResult.geoMetadata.detectedCrs === 'epsg32618') {
+          this.selectedWizardCrs = 'epsg32618';
+          const sel = document.getElementById('wizard-crs-select');
+          if (sel) sel.value = 'epsg32618';
         }
 
         this._renderGcpCanvasMarkers();
@@ -2705,6 +2777,13 @@ class GeoPlanApp {
         }
       } else if (this.selectedWizardCrs === 'epsg9377') {
         const pt = window.georefEngine.wgs84ToEpsg9377(gcp.lat, gcp.lng);
+        if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
+        if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
+        if (statusBox) {
+          statusBox.innerHTML = `<span style="color: #10b981; font-weight: 700;">✓ N: ${pt.norte.toFixed(2)}m, E: ${pt.este.toFixed(2)}m</span>`;
+        }
+      } else if (this.selectedWizardCrs === 'epsg32618') {
+        const pt = window.georefEngine.wgs84ToEpsg32618(gcp.lat, gcp.lng);
         if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
         if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
         if (statusBox) {
@@ -3324,6 +3403,11 @@ class GeoPlanApp {
       if (lbl2) lbl2.textContent = 'Este (X) en metros:';
       if (inp1) inp1.placeholder = 'ej. 1000000.00';
       if (inp2) inp2.placeholder = 'ej. 1000000.00';
+    } else if (crs === 'epsg32618') {
+      if (lbl1) lbl1.textContent = 'Norte (Y) en metros (UTM 18N):';
+      if (lbl2) lbl2.textContent = 'Este (X) en metros (UTM 18N):';
+      if (inp1) inp1.placeholder = 'ej. 509800.00';
+      if (inp2) inp2.placeholder = 'ej. 600000.00';
     } else {
       if (lbl1) lbl1.textContent = 'Latitud (Y):';
       if (lbl2) lbl2.textContent = 'Longitud (X):';
@@ -3556,6 +3640,9 @@ class GeoPlanApp {
         coordStr = `N: ${pt.norte.toFixed(1)} m | E: ${pt.este.toFixed(1)} m`;
       } else if (this.currentHudCrs === 'epsg9377') {
         const pt = window.georefEngine.wgs84ToEpsg9377(item.lat, item.lng);
+        coordStr = `N: ${pt.norte.toFixed(1)} m | E: ${pt.este.toFixed(1)} m`;
+      } else if (this.currentHudCrs === 'epsg32618') {
+        const pt = window.georefEngine.wgs84ToEpsg32618(item.lat, item.lng);
         coordStr = `N: ${pt.norte.toFixed(1)} m | E: ${pt.este.toFixed(1)} m`;
       } else {
         coordStr = `Lat: ${item.lat.toFixed(6)}, Lon: ${item.lng.toFixed(6)}`;
@@ -4089,6 +4176,209 @@ class GeoPlanApp {
       toast.style.transition = 'all 0.3s ease';
       setTimeout(() => toast.remove(), 300);
     }, 3200);
+  }
+
+  /* ==========================================================================
+     Hardware & System Back Button Navigation Manager (Paso Atrás & Doble Toque Salir)
+     ========================================================================== */
+  handleBackNavigation() {
+    try {
+      // 1. Fullscreen Photo Lightbox Viewer (Highest priority: closes photo, returns to previous window)
+      const photoModal = document.getElementById('modal-photo-lightbox');
+      if (photoModal && (photoModal.classList.contains('active') || photoModal.style.display === 'flex' || photoModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando visor de fotos Lightbox');
+        this.closePhotoViewer();
+        return true;
+      }
+
+      // 2. Fullscreen Tutorial Viewer
+      const tutModal = document.getElementById('modal-tutorial');
+      if (tutModal && (tutModal.classList.contains('active') || tutModal.style.display === 'flex' || tutModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando visor de tutorial');
+        this.closeTutorialModal();
+        return true;
+      }
+
+      // 3. GCP 3-Point Calibration Table Modal (Child of PDF Georef Wizard)
+      const gcpTable = document.getElementById('modal-gcp-table-backdrop');
+      if (gcpTable && gcpTable.classList.contains('active')) {
+        console.log('[Geowill Back] Cerrando tabla GCP');
+        this.closeGcpTableModal();
+        return true;
+      }
+
+      // 4. Map Coordinate Picker Mode during PDF calibration
+      const mapPicker = document.getElementById('banner-gcp-map-picker');
+      if (mapPicker && (mapPicker.classList.contains('active') || mapPicker.style.display === 'flex' || mapPicker.style.display === 'block')) {
+        console.log('[Geowill Back] Cancelando seleccion en mapa');
+        this.cancelMapPick();
+        return true;
+      }
+
+      // 5. Live In-App Camera Viewfinder
+      const camModal = document.getElementById('modal-live-camera');
+      if (camModal && (camModal.classList.contains('active') || camModal.style.display === 'flex' || camModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando camara en vivo');
+        this.closeLiveCameraModal();
+        return true;
+      }
+
+      // 6. Point Search & Stakeout List Modal
+      const searchModal = document.getElementById('modal-point-search');
+      if (searchModal && searchModal.classList.contains('active')) {
+        console.log('[Geowill Back] Cerrando busqueda de puntos');
+        this.closePointSearchModal();
+        return true;
+      }
+
+      // 7. Feature Attributes & Photo Form Modal (Ficha Técnica / Edición)
+      const featModal = document.getElementById('modal-feature-backdrop');
+      if (featModal && featModal.classList.contains('active')) {
+        console.log('[Geowill Back] Cerrando ficha tecnica de punto');
+        const returnId = this._returnToInfoFeatureId;
+        this.closeFeatureModal();
+        if (returnId) {
+          this.showFeatureInfo(returnId);
+        }
+        return true;
+      }
+
+      // 8. Feature Info Panel (Cualidades del Punto)
+      const infoModal = document.getElementById('modal-info-backdrop');
+      if (infoModal && infoModal.classList.contains('active')) {
+        console.log('[Geowill Back] Cerrando panel de info de punto');
+        this.closeInfoModal();
+        return true;
+      }
+
+      // 9. Unified KML Hub Modal
+      const kmlModal = document.getElementById('modal-export-kml');
+      if (kmlModal && (kmlModal.classList.contains('active') || kmlModal.style.display === 'flex' || kmlModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando modal KML');
+        kmlModal.classList.remove('active');
+        kmlModal.style.display = 'none';
+        return true;
+      }
+
+      // 10. Project Manager Modal
+      const projModal = document.getElementById('modal-projects-backdrop');
+      if (projModal && (projModal.classList.contains('active') || projModal.style.display === 'flex' || projModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando gestor de proyectos');
+        projModal.classList.remove('active');
+        projModal.style.display = 'none';
+        return true;
+      }
+
+      // 11. Base Maps & Layers Modal
+      const layersModal = document.getElementById('modal-layers-backdrop');
+      if (layersModal && (layersModal.classList.contains('active') || layersModal.style.display === 'flex' || layersModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando modal de capas');
+        this.closeLayersModal();
+        return true;
+      }
+
+      // 12. PDF Georeferencing Wizard Modal
+      const geoModal = document.getElementById('modal-georef-wizard');
+      if (geoModal && (geoModal.classList.contains('active') || geoModal.style.display === 'flex' || geoModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando asistente de georreferenciacion');
+        this.closePdfWizard();
+        return true;
+      }
+
+      // 13. Active Map Popup (Leaflet)
+      if (document.querySelector('.leaflet-popup')) {
+        console.log('[Geowill Back] Cerrando popup del mapa Leaflet');
+        if (window.mapEngine && window.mapEngine.map) {
+          window.mapEngine.map.closePopup();
+        }
+        return true;
+      }
+
+      // 14. Active Vector Drawing Mode (Drawing Points, Lines, Polygons)
+      if (window.vectorEditor && window.vectorEditor.currentMode && window.vectorEditor.currentMode !== 'none') {
+        console.log('[Geowill Back] Cancelando modo dibujo');
+        window.vectorEditor.cancelDrawing();
+        this.showToast('Modo dibujo cancelado', 'info');
+        return true;
+      }
+
+      // 15. Active Stakeout Guidance / Navigation
+      if (window.navStakeout && window.navStakeout.isActive) {
+        console.log('[Geowill Back] Deteniendo navegacion');
+        window.navStakeout.stop();
+        this.showToast('Navegación / replanteo finalizado', 'info');
+        return true;
+      }
+    } catch (err) {
+      console.error('[Geowill] Error in handleBackNavigation:', err);
+    }
+
+    // Root view reached: nothing is active
+    console.log('[Geowill Back] Pantalla principal (mapa). Ninguna ventana activa.');
+    return false;
+  }
+
+  _initBackNavigation() {
+    if (this._backNavInitialized) return;
+    this._backNavInitialized = true;
+
+    let lastActionTime = 0;
+    let rootBackPressTime = 0;
+
+    // 1. Android Native Bridge callback & Global hooks
+    window.handleAndroidBackPressed = () => {
+      const now = Date.now();
+      // Debounce de 300ms para evitar doble disparo
+      if (now - lastActionTime < 300) {
+        return true;
+      }
+      lastActionTime = now;
+
+      console.log('[Geowill] handleAndroidBackPressed invocado a las', now);
+      const handled = this.handleBackNavigation();
+      if (handled) {
+        console.log('[Geowill] Modal/ventana cerrada con éxito. Reset de salida.');
+        rootBackPressTime = 0; // RESET TOTAL
+        return true;
+      }
+
+      // 2. Si no se cerró nada, estamos en el mapa principal
+      if (rootBackPressTime > 0 && (now - rootBackPressTime < 2500)) {
+        console.log('[Geowill] Doble pulsación confirmada en el mapa. Saliendo de la app...');
+        rootBackPressTime = 0;
+        if (window.AndroidNative && typeof window.AndroidNative.exitApp === 'function') {
+          window.AndroidNative.exitApp();
+        }
+        return false;
+      } else {
+        rootBackPressTime = now;
+        console.log('[Geowill] Primera pulsación en el mapa. Mostrando aviso.');
+        if (window.AndroidNative && typeof window.AndroidNative.showToast === 'function') {
+          window.AndroidNative.showToast('Presione atrás nuevamente para salir');
+        } else {
+          this.showToast('Presione atrás nuevamente para salir', 'info');
+        }
+        return false;
+      }
+    };
+    window.handleBackNavigation = window.handleAndroidBackPressed;
+
+    // 2. Keyboard Escape key (desktop testing or tablet keyboard)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const handled = this.handleBackNavigation();
+        if (handled) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    });
+
+    // 3. Web browser / WebView history back navigation support
+    window.addEventListener('popstate', (e) => {
+      console.log('[Geowill] popstate event triggered:', e.state);
+      this.handleBackNavigation();
+    });
   }
 
   /* ==========================================================================

@@ -20,7 +20,17 @@
   <!-- Local Leaflet Stylesheet -->
   <link rel="stylesheet" href="css/leaflet.css">
   <!-- Application Mobile Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=2.1.4">
+  <link rel="stylesheet" href="css/styles.css?v=2.2.2">
+
+  <script>
+    window.handleAndroidBackPressed = function() {
+      if (window.app && typeof window.app.handleBackNavigation === 'function') {
+        return window.app.handleBackNavigation();
+      }
+      return false;
+    };
+    window.handleBackNavigation = window.handleAndroidBackPressed;
+  </script>
 </head>
 <body>
 
@@ -499,6 +509,7 @@
                   <option value="wgs84">🌐 WGS84 (Latitud / Longitud en Grados ej. 4.609712 ó 4°36'35"N)</option>
                   <option value="epsg3116">🇨🇴 EPSG:3116 (MAGNA-SIRGAS Bogotá - Norte / Este en metros)</option>
                   <option value="epsg9377">🇨🇴 EPSG:9377 (MAGNA-SIRGAS Origen Nacional - Norte / Este en metros)</option>
+                  <option value="epsg32618">🌐 EPSG:32618 (WGS 84 / UTM Zona 18N - Norte / Este en metros)</option>
                 </select>
               </div>
 
@@ -559,6 +570,7 @@
               <option value="wgs84">🌐 WGS84 (Latitud / Longitud en Grados o DMS)</option>
               <option value="epsg3116">🇨🇴 EPSG:3116 (MAGNA-SIRGAS Bogotá - Norte / Este en metros)</option>
               <option value="epsg9377">🇨🇴 EPSG:9377 (MAGNA-SIRGAS Origen Nacional - Norte / Este en metros)</option>
+              <option value="epsg32618">🌐 EPSG:32618 (WGS 84 / UTM Zona 18N - Norte / Este en metros)</option>
             </select>
           </div>
 
@@ -866,6 +878,7 @@
                 <option value="wgs84">🌐 WGS84 (Latitud / Longitud en Grados Decimales o DMS)</option>
                 <option value="epsg9377">🇨🇴 EPSG:9377 (MAGNA-SIRGAS Origen Nacional - Norte / Este en metros)</option>
                 <option value="epsg3116">🇨🇴 EPSG:3116 (MAGNA-SIRGAS Bogotá - Norte / Este en metros)</option>
+                <option value="epsg32618">🌐 EPSG:32618 (WGS 84 / UTM Zona 18N - Norte / Este en metros)</option>
               </select>
             </div>
 
@@ -1279,7 +1292,7 @@
     <!-- ====================================================================
          Modal: Fullscreen Photo Lightbox Viewer (Pinch-to-Zoom & Pan)
          ==================================================================== -->
-    <div class="modal-backdrop" id="modal-photo-lightbox" style="z-index: 99999; background: rgba(3, 7, 18, 0.96); backdrop-filter: blur(12px); flex-direction: column; justify-content: space-between; padding: 10px; user-select: none;">
+    <div class="modal-backdrop" id="modal-photo-lightbox" style="display: none; z-index: 99999; background: rgba(3, 7, 18, 0.96); backdrop-filter: blur(12px); flex-direction: column; justify-content: space-between; padding: 10px; user-select: none;">
       <!-- Header with Info & Zoom Controls -->
       <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(15, 23, 42, 0.88); border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.35); gap: 8px;">
         <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1;">
@@ -1356,15 +1369,15 @@
 
   <!-- Application Modules -->
   <script src="js/storage-db.js?v=2.2.4"></script>
-  <script src="js/georef-engine.js?v=2.2.4"></script>
-  <script src="js/pdf-loader.js?v=2.2.4"></script>
-  <script src="js/gps-tracker.js?v=2.2.4"></script>
-  <script src="js/collar-cordero-data.js?v=2.2.4"></script>
-  <script src="js/vector-editor.js?v=2.2.4"></script>
-  <script src="js/kml-exporter.js?v=2.2.4"></script>
-  <script src="js/kml-importer.js?v=2.2.4"></script>
-  <script src="js/navigation-stakeout.js?v=2.2.4"></script>
-  <script src="js/map-engine.js?v=2.2.4"></script>
-  <script src="js/app.js?v=2.2.4"></script>
+  <script src="js/georef-engine.js?v=2.2.5"></script>
+  <script src="js/pdf-loader.js?v=2.2.7"></script>
+  <script src="js/gps-tracker.js?v=2.2.6"></script>
+  <script src="js/collar-cordero-data.js?v=2.2.6"></script>
+  <script src="js/vector-editor.js?v=2.2.6"></script>
+  <script src="js/kml-exporter.js?v=2.2.6"></script>
+  <script src="js/kml-importer.js?v=2.2.6"></script>
+  <script src="js/navigation-stakeout.js?v=2.2.6"></script>
+  <script src="js/map-engine.js?v=2.2.6"></script>
+  <script src="js/app.js?v=2.2.2"></script>
 </body>
 </html>

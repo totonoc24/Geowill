@@ -783,17 +783,25 @@ body.nav-guidance-active .leaflet-control-zoom {
 
 .coords-system-pills {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   background: rgba(30, 41, 59, 0.7);
   padding: 2px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.coords-system-pills::-webkit-scrollbar {
+  display: none;
 }
 
 .coords-pill {
   flex: 1;
+  min-width: 55px;
   padding: 4px 4px;
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 700;
   border: none;
   background: transparent;

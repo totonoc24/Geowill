@@ -675,6 +675,10 @@ class PdfLoader {
           detectedCrs = 'epsg3116';
           crsLabel = '🇨🇴 MAGNA-SIRGAS Bogotá (EPSG:3116)';
           epsg = 3116;
+        } else if (crsSearchText.match(/32618|UTM[\s_]*(?:ZONA|ZONE)?[\s_]*18\s*N/i)) {
+          detectedCrs = 'epsg32618';
+          crsLabel = '🌐 UTM Zona 18N (EPSG:32618)';
+          epsg = 32618;
         } else if (crsSearchText.match(/3857|900913|WEB\s*MERCATOR/i)) {
           detectedCrs = 'epsg3857';
           crsLabel = '🌐 Web Mercator (EPSG:3857)';
@@ -689,6 +693,9 @@ class PdfLoader {
             } else if (epsg === 3116) {
               detectedCrs = 'epsg3116';
               crsLabel = '🇨🇴 MAGNA-SIRGAS Bogotá (EPSG:3116)';
+            } else if (epsg === 32618) {
+              detectedCrs = 'epsg32618';
+              crsLabel = '🌐 UTM Zona 18N (EPSG:32618)';
             } else if (epsg >= 32601 && epsg <= 32660) {
               const zone = epsg - 32600;
               detectedCrs = `UTM ${zone}N`;

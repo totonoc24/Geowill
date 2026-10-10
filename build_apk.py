@@ -25,7 +25,7 @@ if not os.path.exists(JAVA_EXE):
     JAVA_EXE = 'java'
 
 APP_NAME = 'Geowill'
-OUTPUT_APK_NAME = 'Geowill_Android_v2.1.4.apk'
+OUTPUT_APK_NAME = 'Geowill_Android_v2.2.2.apk'
 
 def setup_directories():
     print('[1/6] Preparando estructura de directorios...')
@@ -52,8 +52,8 @@ def create_manifest_and_resources():
     manifest_content = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.geowill"
-    android:versionCode="9"
-    android:versionName="2.1.4">
+    android:versionCode="18"
+    android:versionName="2.2.2">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
 
@@ -553,6 +553,7 @@ import android.os.Environment;
 import android.os.StrictMode;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.KeyEvent;
 import android.util.Base64;
 import android.util.Log;
 import android.widget.Toast;
@@ -954,6 +955,83 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Decodifica una imagen desde archivo usando submuestreo (inSampleSize)
+     * para reducir el consumo de memoria RAM segun las directrices de Google Play.
+     */
+    private Bitmap decodeSampledBitmapFromFile(String path, int reqWidth, int reqHeight) {
+        if (path == null) return null;
+        File f = new File(path);
+        if (!f.exists() || f.length() == 0) return null;
+        try {
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(path, options);
+
+            if (options.outWidth <= 0 || options.outHeight <= 0) {
+                return null;
+            }
+
+            int inSampleSize = 1;
+            int height = options.outHeight;
+            int width = options.outWidth;
+            if (height > reqHeight || width > reqWidth) {
+                int halfHeight = height / 2;
+                int halfWidth = width / 2;
+                while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                    inSampleSize *= 2;
+                }
+            }
+            options.inSampleSize = inSampleSize;
+            options.inJustDecodeBounds = false;
+            return BitmapFactory.decodeFile(path, options);
+        } catch (Exception e) {
+            Log.e("GeowillCamera", "Error en decodeSampledBitmapFromFile: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Decodifica una imagen desde Uri usando submuestreo (inSampleSize)
+     * para reducir el consumo de memoria RAM segun las directrices de Google Play.
+     */
+    private Bitmap decodeSampledBitmapFromUri(Uri uri, int reqWidth, int reqHeight) {
+        if (uri == null) return null;
+        try {
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            try (InputStream is = getContentResolver().openInputStream(uri)) {
+                if (is == null) return null;
+                BitmapFactory.decodeStream(is, null, options);
+            }
+
+            if (options.outWidth <= 0 || options.outHeight <= 0) {
+                return null;
+            }
+
+            int inSampleSize = 1;
+            int height = options.outHeight;
+            int width = options.outWidth;
+            if (height > reqHeight || width > reqWidth) {
+                int halfHeight = height / 2;
+                int halfWidth = width / 2;
+                while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                    inSampleSize *= 2;
+                }
+            }
+            options.inSampleSize = inSampleSize;
+            options.inJustDecodeBounds = false;
+
+            try (InputStream is = getContentResolver().openInputStream(uri)) {
+                if (is == null) return null;
+                return BitmapFactory.decodeStream(is, null, options);
+            }
+        } catch (Exception e) {
+            Log.e("GeowillCamera", "Error en decodeSampledBitmapFromUri: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -972,48 +1050,19 @@ public class MainActivity extends Activity {
 
                 Bitmap bmp = null;
 
-                // Attempt A: Read from created file path
+                // Attempt A: Read from created file path with downsampling
                 if (cameraPhotoPath != null) {
-                    File f = new File(cameraPhotoPath);
-                    if (f.exists() && f.length() > 0) {
-                        try {
-                            BitmapFactory.Options options = new BitmapFactory.Options();
-                            options.inJustDecodeBounds = true;
-                            BitmapFactory.decodeFile(cameraPhotoPath, options);
-                            int origW = options.outWidth;
-                            int origH = options.outHeight;
-                            int targetMax = 1920;
-                            int sampleSize = 1;
-                            while (origW / (sampleSize * 2) >= targetMax || origH / (sampleSize * 2) >= targetMax) {
-                                sampleSize *= 2;
-                            }
-                            options.inJustDecodeBounds = false;
-                            options.inSampleSize = sampleSize;
-                            bmp = BitmapFactory.decodeFile(cameraPhotoPath, options);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
+                    bmp = decodeSampledBitmapFromFile(cameraPhotoPath, 1920, 1920);
                 }
 
-                // Attempt B: Read from Intent Data Stream
+                // Attempt B: Read from Intent Data Stream with downsampling
                 if (bmp == null && data != null && data.getData() != null) {
-                    try {
-                        InputStream is = getContentResolver().openInputStream(data.getData());
-                        bmp = BitmapFactory.decodeStream(is);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    bmp = decodeSampledBitmapFromUri(data.getData(), 1920, 1920);
                 }
 
-                // Attempt C: Read from Content URI Stream
+                // Attempt C: Read from Content URI Stream with downsampling
                 if (bmp == null && cameraContentUri != null) {
-                    try {
-                        InputStream is = getContentResolver().openInputStream(cameraContentUri);
-                        bmp = BitmapFactory.decodeStream(is);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    bmp = decodeSampledBitmapFromUri(cameraContentUri, 1920, 1920);
                 }
 
                 // Attempt D: Read from Extras thumbnail Bitmap
@@ -1111,12 +1160,46 @@ public class MainActivity extends Activity {
         }
     }
 
+    private long lastNativeBackTime = 0;
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                triggerNativeBackPress();
+            }
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
+        triggerNativeBackPress();
+    }
+
+    private void triggerNativeBackPress() {
+        long now = System.currentTimeMillis();
+        if (now - lastNativeBackTime < 300) {
+            return;
+        }
+        lastNativeBackTime = now;
+
+        if (webView != null) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    webView.evaluateJavascript("if (typeof window.handleAndroidBackPressed === 'function') { window.handleAndroidBackPressed(); } else if (window.app && typeof window.app.handleBackNavigation === 'function') { window.app.handleBackNavigation(); }", null);
+                }
+            });
         }
     }
 
@@ -1340,6 +1423,16 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void showToast(String message) {
             Toast.makeText(mContext, message, Toast.LENGTH_SHORT).show();
+        }
+
+        @JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    finish();
+                }
+            });
         }
     }
 }

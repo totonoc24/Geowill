@@ -1,4 +1,4 @@
-const CACHE_NAME = 'geowill-v2.1.4';
+const CACHE_NAME = 'geowill-v2.2.2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -25,7 +25,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[ServiceWorker] Caching app shell v2.1.4');
+      console.log('[ServiceWorker] Caching app shell v2.1.5');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );

@@ -1,10 +1,10 @@
 @echo off
-title Compilador APK - Geowill Android GIS
+title Compilador AAB (Google Play) - Geowill Android GIS
 echo =====================================================================
-echo           Geowill Android - Compilador Automatico de APK (v2.2.2)
+echo    Geowill Android - Compilador Automatico de Bundle AAB (v2.2.2)
 echo =====================================================================
 echo.
-echo Compilando y firmando el archivo APK de Android (Geowill v2.2.2)...
+echo Compilando y firmando el archivo AAB para Google Play Console...
 echo.
 
 set "PY_CMD="
@@ -19,11 +19,11 @@ if "%PY_CMD%"=="" (
 )
 
 if not "%PY_CMD%"=="" (
-    %PY_CMD% build_apk.py
+    %PY_CMD% build_aab.py
 ) else (
     echo Error: No se encontro Python en el sistema.
 )
 
 echo.
-echo Proceso finalizado. Puede enviar el archivo Geowill_Android_v2.2.2.apk por WhatsApp.
+echo Proceso finalizado. El archivo Geowill_Android_v2.2.2.aab esta listo para Google Play Console.
 pause

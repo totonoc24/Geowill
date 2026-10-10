@@ -226,6 +226,25 @@ class GeorefEngine {
   }
 
   /**
+   * EPSG:32618 - WGS 84 / UTM zone 18N (Central: Lon -75.0, Lat 0.0, False East: 500000, False North: 0.0, k0: 0.9996)
+   */
+  wgs84ToEpsg32618(lat, lng) {
+    return this._transverseMercatorForward(
+      lat, lng,
+      0.0, -75.0,
+      0.9996, 500000.0, 0.0
+    );
+  }
+
+  epsg32618ToWgs84(este, norte) {
+    return this._transverseMercatorInverse(
+      este, norte,
+      0.0, -75.0,
+      0.9996, 500000.0, 0.0
+    );
+  }
+
+  /**
    * UTM Zone to WGS84 Lat/Lng
    * @param {number} este - Easting in meters
    * @param {number} norte - Northing in meters
@@ -277,6 +296,9 @@ class GeorefEngine {
 
     const crsStr = String(crsInfo).toUpperCase();
 
+    if (crsStr.includes('32618') || crsStr.includes('UTM 18N') || crsStr.includes('UTM ZONE 18N')) {
+      return this.epsg32618ToWgs84(num2, num1); // Este, Norte
+    }
     if (crsStr.includes('3116') || crsStr.includes('BOGOTA')) {
       return this.epsg3116ToWgs84(num2, num1); // Este, Norte
     }
@@ -325,6 +347,11 @@ class GeorefEngine {
       const este = typeof val2 === 'number' ? val2 : parseFloat(val2);
       if (isNaN(norte) || isNaN(este)) return null;
       return this.epsg9377ToWgs84(este, norte);
+    } else if (crs === 'epsg32618' || crs === 'utm18n' || crs === '32618') {
+      const norte = typeof val1 === 'number' ? val1 : parseFloat(val1);
+      const este = typeof val2 === 'number' ? val2 : parseFloat(val2);
+      if (isNaN(norte) || isNaN(este)) return null;
+      return this.epsg32618ToWgs84(este, norte);
     } else {
       // WGS84 (Lat, Lng) either decimal or DMS
       const lat = this.parseDMSToDecimal(val1);
