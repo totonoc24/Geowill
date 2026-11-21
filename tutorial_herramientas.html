@@ -354,6 +354,43 @@
       }
     }
 
+    @media (max-width: 768px) {
+      .sidebar-nav {
+        display: none;
+      }
+      .header-nav {
+        padding: 10px 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .search-box {
+        width: 100%;
+        order: 3;
+      }
+      .content-area {
+        padding: 16px 14px;
+      }
+      .hero-banner {
+        padding: 20px 16px;
+        margin-bottom: 24px;
+      }
+      .hero-title {
+        font-size: 1.45rem;
+      }
+      .section-title {
+        font-size: 1.2rem;
+      }
+      .tutorial-grid {
+        padding: 14px;
+        gap: 18px;
+      }
+      .tutorial-footer {
+        flex-direction: column;
+        gap: 6px;
+        text-align: center;
+      }
+    }
+
     /* Mobile Mockup Device Frame */
     .device-container {
       display: flex;
@@ -829,7 +866,7 @@
 
       <!-- Hero Banner -->
       <section class="hero-banner">
-        <span class="hero-badge">Estación de Trabajo Móvil SIG</span>
+        <span class="hero-badge">Estación de Trabajo Móvil SIG • v2.2.10</span>
         <h1 class="hero-title">Guía Visual de Herramientas Geowill</h1>
         <p class="hero-desc">
           Aprende a dominar cada control, panel y funcionalidad de <b>Geowill</b>. Diseñado especialmente para topógrafos, ingenieros civiles, peritos catastrales y brigadas de campo que requieren precisión satelital, georreferenciación afín de planos PDF y gestión KML sin necesidad de conexión a internet.
@@ -837,9 +874,10 @@
 
         <div class="quick-stats">
           <div class="stat-chip">🌐 <strong>100% Offline:</strong> Opera en zonas remotas</div>
-          <div class="stat-chip">📐 <strong>3 Puntos GCP:</strong> Transformación Afín 2D</div>
+          <div class="stat-chip">📐 <strong>GeoPDF &amp; 3 Puntos:</strong> Transformación Afín 2D</div>
           <div class="stat-chip">🧭 <strong>Brújula 360°:</strong> Replanteo con Azimut</div>
           <div class="stat-chip">🇨🇴 <strong>CRS Soportados:</strong> WGS84, 3116, 9377 y UTM 18N</div>
+          <div class="stat-chip">👁️ <strong>Capas:</strong> Visibilidad por categoría o entidad</div>
         </div>
       </section>
 
@@ -911,11 +949,11 @@
                   </div>
 
                   <!-- Hotspots on Mockup -->
-                  <div class="hotspot" style="left: 14px; top: 20px;" onclick="highlightCallout('call-top-nav')">1</div>
-                  <div class="hotspot" style="left: 20px; top: 78px;" onclick="highlightCallout('call-hud-coords')">2</div>
-                  <div class="hotspot" style="left: 20px; top: 22px;" onclick="highlightCallout('call-compass')">3</div>
-                  <div class="hotspot" style="right: 12px; top: 110px;" onclick="highlightCallout('call-side-controls')">4</div>
-                  <div class="hotspot" style="left: 50%; bottom: 65px; transform: translateX(-50%);" onclick="highlightCallout('call-dock')">5</div>
+                  <div class="hotspot" style="left: 50%; top: 6px; transform: translateX(-50%);" onclick="highlightCallout('call-top-nav')">1</div>
+                  <div class="hotspot" style="left: 102px; top: 84px;" onclick="highlightCallout('call-hud-coords')">2</div>
+                  <div class="hotspot" style="left: 44px; top: 20px;" onclick="highlightCallout('call-compass')">3</div>
+                  <div class="hotspot" style="right: 36px; top: 110px;" onclick="highlightCallout('call-side-controls')">4</div>
+                  <div class="hotspot" style="left: 50%; bottom: 16px; transform: translateX(-50%);" onclick="highlightCallout('call-dock')">5</div>
                 </div>
 
                 <!-- Sim Bottom Dock -->
@@ -963,13 +1001,13 @@
             <div class="callout-card" id="call-hud-coords">
               <div class="callout-header">
                 <div class="badge-number">2</div>
-                <div class="callout-title">HUD de Coordenadas & Conversor de CRS</div>
+                <div class="callout-title">HUD de Coordenadas en Vivo &amp; Conversor de CRS</div>
               </div>
               <div class="callout-desc">
-                Muestra en tiempo real la <strong>Latitud</strong>, <strong>Longitud</strong>, <strong>Altitud</strong> sobre el nivel del mar y la <strong>Precisión (m)</strong> de tu GPS. Toca sobre la caja para alternar al instante entre <strong>WGS84</strong>, <strong>EPSG:3116</strong> (Bogotá), <strong>EPSG:9377</strong> (Origen Nacional) y <strong>EPSG:32618</strong> (UTM Zona 18N).
+                Muestra en tiempo real las coordenadas (<strong>Lat/Lon</strong> o <strong>Norte/Este en metros</strong>), <strong>Altitud</strong> sobre el nivel del mar y <strong>Precisión (m)</strong>. Toca sobre la caja para alternar al instante entre <strong>WGS84</strong>, <strong>EPSG:3116</strong> (Bogotá), <strong>EPSG:9377</strong> (Origen Nacional) y <strong>EPSG:32618</strong> (UTM Zona 18N). Al recorrer o desplazar el mapa, el visor actualiza automáticamente las coordenadas en el sistema seleccionado.
               </div>
               <div class="callout-tips">
-                💡 Toca la tarjeta para cambiar de sistema de coordenadas al vuelo.
+                💡 Toca la tarjeta para cambiar de sistema de coordenadas al vuelo; funciona tanto con GPS activo como al explorar el mapa.
               </div>
             </div>
 
@@ -1114,10 +1152,10 @@
             <div class="callout-card" id="call-gcp-selection">
               <div class="callout-header">
                 <div class="badge-number">1</div>
-                <div class="callout-title">Marcación de Píxeles en el Plano (GCP 1, 2 y 3)</div>
+                <div class="callout-title">Dos Modos: GeoPDF Automático o Calibración con 3 Puntos</div>
               </div>
               <div class="callout-desc">
-                Carga cualquier archivo PDF (plano de loteo, topográfico o arquitectónico). Toca con precisión sobre 3 esquinas conocidas o vértices de la cuadrícula. Cada punto se identifica con una mira de cruz y un color característico (Rojo para P1, Amarillo para P2 y Verde para P3).
+                Si tu plano ya fue exportado como <strong>GeoPDF</strong> desde ArcGIS, QGIS, Global Mapper o AutoCAD Map, usa la pestaña <strong>🌐 Cargar Plano Georreferenciado</strong> para proyectarlo automáticamente (o definir sus límites Bounding Box). Para planos sin georreferencia, usa <strong>📐 Calibrar con 3 Puntos</strong> y toca con precisión 3 esquinas o vértices (P1, P2 y P3).
               </div>
               <div class="callout-tips">
                 💡 Consejo: Elige 3 puntos que formen un triángulo lo más amplio posible sobre el plano para minimizar el error angular.
@@ -1143,14 +1181,14 @@
             <div class="callout-card" id="call-gcp-inputs">
               <div class="callout-header">
                 <div class="badge-number">3</div>
-                <div class="callout-title">Asignación de Coordenadas Terrestres</div>
+                <div class="callout-title">Asignación de Coordenadas Terrestres y Tabla de 3 Puntos</div>
               </div>
               <div class="callout-desc">
-                Para cada punto de control dispones de 3 formas de asignar su coordenada real:
+                Para cada punto de control dispones de 3 formas de asignar su coordenada real (puedes deslizar hacia abajo en el panel inferior para editar cómodamente incluso con el teclado abierto):
                 <ul style="margin-left: 18px; margin-top: 6px; font-size: 0.83rem;">
                   <li><strong>📍 Mi GPS:</strong> Asigna al instante tu coordenada satelital actual si estás parado físicamente sobre ese mojón en el terreno.</li>
                   <li><strong>🗺️ Marcar en Mapa:</strong> Abre el mapa satelital para hacer clic en el punto visible de referencia (ej. esquina de vía o lindero).</li>
-                  <li><strong>Teclado / Tabla:</strong> Digita manualmente las coordenadas en WGS84, EPSG:3116, EPSG:9377 o UTM 18N (EPSG:32618).</li>
+                  <li><strong>Teclado / 📋 Tabla 3 Puntos:</strong> Digita manualmente las coordenadas en <strong>WGS84</strong> (decimal o DMS), <strong>EPSG:3116</strong>, <strong>EPSG:9377</strong> o <strong>UTM 18N (EPSG:32618)</strong>. Acepta punto o coma decimal y separadores de miles.</li>
                 </ul>
               </div>
             </div>
@@ -1307,7 +1345,7 @@
                 Una línea punteada esmeralda conecta directamente tu posición GPS con el vértice de replanteo. Cuando te encuentras a <strong>menos de 3 metros</strong> del objetivo, la aplicación activa un banner de éxito verde con vibración háptica en tu celular para confirmar la ubicación del mojón.
               </div>
               <div class="callout-tips">
-                💡 Busca cualquier punto del proyecto o ingresa coordenadas directas desde el botón 🎯 en la barra lateral.
+                💡 Busca cualquier punto del proyecto, elimina entidades directamente desde la lista o ingresa coordenadas en WGS84, EPSG:3116, EPSG:9377 o UTM 18N desde el botón 🎯 en la barra lateral.
               </div>
             </div>
           </div>
@@ -1431,7 +1469,7 @@
                 Mientras dibujas, la barra superior actualiza en tiempo real:
                 <ul style="margin-left: 18px; margin-top: 6px; font-size: 0.83rem;">
                   <li><strong>Línea (📏):</strong> Longitud acumulada total y distancias parciales por tramo.</li>
-                  <li><strong>Polígono (⬡):</strong> Área en <strong>metros cuadrados ($m^2$)</strong> y <strong>hectáreas ($ha$)</strong>, además del perímetro total.</li>
+                  <li><strong>Polígono (⬡):</strong> Área en <strong>metros cuadrados (m²)</strong> y <strong>hectáreas (ha)</strong>, además del perímetro total.</li>
                 </ul>
               </div>
             </div>
@@ -1519,10 +1557,10 @@
             <div class="callout-card" id="call-track-filter">
               <div class="callout-header">
                 <div class="badge-number">2</div>
-                <div class="callout-title">Filtro Inteligente Antideriva de 5 Metros</div>
+                <div class="callout-title">Filtro Antideriva Configurable y Registro en Segundo Plano</div>
               </div>
               <div class="callout-desc">
-                Los teléfonos móviles convencionales presentan "ruido satelital" cuando te detienes. Geowill incorpora un <strong>algoritmo de tolerancia de 5 metros</strong>: únicamente añade un nuevo vértice a la ruta cuando tu desplazamiento real excede ese umbral, garantizando líneas limpias y distancias fidedignas.
+                Los teléfonos móviles presentan "ruido satelital" cuando te detienes. Geowill incorpora un <strong>filtro de distancia configurable</strong> (por defecto <strong>5 metros</strong>, ajustable tocando la insignia <code>5m ⚙️</code> en la barra HUD): solo registra un nuevo vértice cuando tu desplazamiento real supera ese umbral, y sincroniza automáticamente los puntos capturados en segundo plano al volver a la app.
               </div>
               <div class="callout-tips">
                 💡 Al pulsar "⏹️ Fin", la ruta se guarda con fecha, hora y estadísticas para exportar a KML.
@@ -1785,9 +1823,19 @@
               </div>
             </div>
 
-            <div class="callout-card" id="call-projects-db">
+            <div class="callout-card" id="call-layers-visibility">
               <div class="callout-header">
                 <div class="badge-number">2</div>
+                <div class="callout-title">Control de Visibilidad de Capas y Opacidad del Plano</div>
+              </div>
+              <div class="callout-desc">
+                Desde el botón de <strong>Capas (🗺️)</strong> en la barra superior puedes <strong>encender o apagar</strong> la visibilidad por categoría completa (Plano PDF, Puntos, Líneas, Polígonos y Rutas GPS) o elemento por elemento, además de regular la transparencia del plano georreferenciado con el control deslizante de opacidad.
+              </div>
+            </div>
+
+            <div class="callout-card" id="call-projects-db">
+              <div class="callout-header">
+                <div class="badge-number">3</div>
                 <div class="callout-title">Gestión de Múltiples Obras y Proyectos Locales</div>
               </div>
               <div class="callout-desc">
@@ -1800,7 +1848,7 @@
 
       <!-- Footer -->
       <footer class="tutorial-footer">
-        <div>Geowill © 2026 - Manual Técnico & Tutorial Visual</div>
+        <div>Geowill v2.2.10 © 2026 - Manual Técnico &amp; Tutorial Visual</div>
         <div>Desarrollado para Ingeniería Topográfica y Catastral</div>
       </footer>
 

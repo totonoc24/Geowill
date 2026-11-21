@@ -36,24 +36,61 @@ class GeorefEngine {
   }
 
   /**
+   * Parses localized numeric strings (handles decimal comma, thousands dots/commas, spaces, trailing 'm')
+   */
+  _parseLocalizedNumber(val) {
+    if (typeof val === 'number') return val;
+    if (val === null || val === undefined) return NaN;
+    let s = String(val).trim().replace(/\s+/g, '').replace(/[mM]$/, '');
+    if (!s) return NaN;
+
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+
+    if (hasComma && hasDot) {
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+        s = s.replace(/\./g, '').replace(',', '.');
+      } else {
+        s = s.replace(/,/g, '');
+      }
+    } else if (hasComma) {
+      const parts = s.split(',');
+      if (parts.length > 2) {
+        s = s.replace(/,/g, '');
+      } else {
+        s = s.replace(',', '.');
+      }
+    } else if (hasDot) {
+      const parts = s.split('.');
+      if (parts.length > 2) {
+        s = s.replace(/\./g, '');
+      }
+    }
+
+    return parseFloat(s);
+  }
+
+  /**
    * Parses DMS string (e.g. 04°36'35.12"N, 74°04'54.3"W) into Decimal Degrees
    */
   parseDMSToDecimal(dmsStr) {
     if (typeof dmsStr === 'number') return dmsStr;
-    const clean = dmsStr.trim().toUpperCase();
+    if (!dmsStr) return NaN;
+    const clean = String(dmsStr).trim().toUpperCase();
     
-    // Check if already decimal
-    if (/^[-+]?[0-9]*\.?[0-9]+$/.test(clean)) {
-      return parseFloat(clean);
+    // Check if already decimal (dot or comma)
+    const normalizedDec = clean.replace(',', '.');
+    if (/^[-+]?[0-9]*\.?[0-9]+$/.test(normalizedDec)) {
+      return parseFloat(normalizedDec);
     }
 
-    const regex = /([0-9]+)[\s°ºdD]+([0-9]+)[\s'mM]+([0-9]+(?:\.[0-9]+)?)[\s"sS]*([NSEW])?/i;
+    const regex = /([0-9]+)[\s°ºdD]+([0-9]+)[\s'mM]+([0-9]+(?:[.,][0-9]+)?)[\s"sS]*([NSEW])?/i;
     const match = clean.match(regex);
     if (!match) return NaN;
 
     const deg = parseFloat(match[1]);
     const min = parseFloat(match[2]);
-    const sec = parseFloat(match[3]);
+    const sec = parseFloat(match[3].replace(',', '.'));
     const dir = match[4];
 
     let dec = deg + min / 60 + sec / 3600;
@@ -338,25 +375,25 @@ class GeorefEngine {
    */
   parseCoordinateInput(val1, val2, crs = 'wgs84') {
     if (crs === 'epsg3116') {
-      const norte = typeof val1 === 'number' ? val1 : parseFloat(val1);
-      const este = typeof val2 === 'number' ? val2 : parseFloat(val2);
+      const norte = this._parseLocalizedNumber(val1);
+      const este = this._parseLocalizedNumber(val2);
       if (isNaN(norte) || isNaN(este)) return null;
       return this.epsg3116ToWgs84(este, norte);
     } else if (crs === 'epsg9377') {
-      const norte = typeof val1 === 'number' ? val1 : parseFloat(val1);
-      const este = typeof val2 === 'number' ? val2 : parseFloat(val2);
+      const norte = this._parseLocalizedNumber(val1);
+      const este = this._parseLocalizedNumber(val2);
       if (isNaN(norte) || isNaN(este)) return null;
       return this.epsg9377ToWgs84(este, norte);
     } else if (crs === 'epsg32618' || crs === 'utm18n' || crs === '32618') {
-      const norte = typeof val1 === 'number' ? val1 : parseFloat(val1);
-      const este = typeof val2 === 'number' ? val2 : parseFloat(val2);
+      const norte = this._parseLocalizedNumber(val1);
+      const este = this._parseLocalizedNumber(val2);
       if (isNaN(norte) || isNaN(este)) return null;
       return this.epsg32618ToWgs84(este, norte);
     } else {
       // WGS84 (Lat, Lng) either decimal or DMS
       const lat = this.parseDMSToDecimal(val1);
       const lng = this.parseDMSToDecimal(val2);
-      if (isNaN(lat) || isNaN(lng)) return null;
+      if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
       return { lat, lng };
     }
   }
@@ -514,6 +551,9 @@ class GeorefEngine {
 
     // Inverse affine matrix: (u, v) = inv(M) * (x, y)
     const invDet = a * e - b * d;
+    if (!isFinite(invDet) || Math.abs(invDet) < 1e-12 || !isFinite(scaleX) || !isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) {
+      throw new Error('Las coordenadas reales de los 3 puntos son iguales, colineales o inválidas para el sistema seleccionado. Verifique Norte/Este (o Lat/Lon) de P1, P2 y P3.');
+    }
     const invMatrix = {
       a: e / invDet,
       b: -b / invDet,

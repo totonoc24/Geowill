@@ -232,17 +232,19 @@ class MapEngine {
 
     if (!renderDataUrl || !georefInfo) return;
 
+    this.isPdfVisible = true;
     this.currentPdfLayer = L.warpedPdfLayer(renderDataUrl, georefInfo, {
       opacity: this.pdfOpacity
     });
 
-    if (this.isPdfVisible) {
-      this.currentPdfLayer.addTo(this.map);
-    }
+    this.currentPdfLayer.addTo(this.map);
 
-    // Zoom to PDF bounds
+    // Zoom to PDF bounds and force canvas redraw
     if (georefInfo.bounds) {
-      this.map.fitBounds(georefInfo.bounds, { padding: [40, 40], animate: true });
+      this.map.fitBounds(georefInfo.bounds, { padding: [40, 40], animate: false });
+      setTimeout(() => {
+        if (this.currentPdfLayer) this.currentPdfLayer._update();
+      }, 250);
     }
   }
 

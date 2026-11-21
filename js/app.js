@@ -1841,6 +1841,10 @@ class GeoPlanApp {
       modal.classList.add('active');
       try { window.history.pushState({ geowillModal: 'georef-wizard' }, ''); } catch (e) {}
     }
+    const sel = document.getElementById('wizard-crs-select');
+    if (sel) {
+      this.selectedWizardCrs = sel.value || 'wgs84';
+    }
     this._resetCalibrationState();
   }
 
@@ -2881,10 +2885,39 @@ class GeoPlanApp {
   }
 
   async _applyGeoreferencingCalibration() {
+    // Sincronizar CRS con el selector visible y asegurar lectura del punto activo antes de aplicar
+    const wizardSelect = document.getElementById('wizard-crs-select');
+    if (wizardSelect && wizardSelect.value) {
+      this.selectedWizardCrs = wizardSelect.value;
+    }
+
+    const activeIdx = this.calibrationState.activeGcpIndex;
+    const activeVal1 = document.getElementById('gcp-lat-input')?.value.trim() || '';
+    const activeVal2 = document.getElementById('gcp-lng-input')?.value.trim() || '';
+    if (activeVal1 || activeVal2) {
+      this.calibrationState.gcps[activeIdx].rawC1 = activeVal1;
+      this.calibrationState.gcps[activeIdx].rawC2 = activeVal2;
+      if (activeVal1 && activeVal2) {
+        const parsedActive = window.georefEngine.parseCoordinateInput(activeVal1, activeVal2, this.selectedWizardCrs);
+        if (parsedActive) {
+          this.calibrationState.gcps[activeIdx].lat = parsedActive.lat;
+          this.calibrationState.gcps[activeIdx].lng = parsedActive.lng;
+        }
+      }
+    }
+
     const gcps = this.calibrationState.gcps;
     for (let i = 0; i < 3; i++) {
-      if (gcps[i].pdfX === null || gcps[i].lat === null || gcps[i].lng === null) {
-        this.showToast(`Por favor complete el Punto P${i + 1} (Pixel y Coordenadas Lat/Lng)`, 'warning');
+      // Si el punto tiene texto escrito pero lat/lng nulos, reintentar parsear con el CRS actual
+      if ((gcps[i].lat === null || gcps[i].lng === null) && gcps[i].rawC1 && gcps[i].rawC2) {
+        const parsed = window.georefEngine.parseCoordinateInput(gcps[i].rawC1, gcps[i].rawC2, this.selectedWizardCrs);
+        if (parsed) {
+          gcps[i].lat = parsed.lat;
+          gcps[i].lng = parsed.lng;
+        }
+      }
+      if (gcps[i].pdfX === null || gcps[i].lat === null || gcps[i].lng === null || !isFinite(gcps[i].lat) || !isFinite(gcps[i].lng)) {
+        this.showToast(`Por favor complete el Punto P${i + 1} (Pixel en plano y Coordenadas válidas)`, 'warning');
         return;
       }
     }
