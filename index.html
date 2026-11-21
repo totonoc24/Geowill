@@ -20,11 +20,13 @@
   <!-- Local Leaflet Stylesheet -->
   <link rel="stylesheet" href="css/leaflet.css">
   <!-- Application Mobile Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=2.2.2">
+  <link rel="stylesheet" href="css/styles.css?v=2.2.9">
 
   <script>
     window.handleAndroidBackPressed = function() {
-      if (window.app && typeof window.app.handleBackNavigation === 'function') {
+      if (window.app && typeof window.app.onBackPressed === 'function') {
+        return window.app.onBackPressed();
+      } else if (window.app && typeof window.app.handleBackNavigation === 'function') {
         return window.app.handleBackNavigation();
       }
       return false;
@@ -348,7 +350,7 @@
       </div>
 
       <!-- Mode Selector Tabs: GeoPDF vs 3-Point Calibration -->
-      <div style="background: #1e293b; padding: 8px 16px; display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <div style="flex-shrink: 0; background: #1e293b; padding: 8px 16px; display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">
         <button class="btn btn-sm btn-secondary flex-1" id="tab-btn-geopdf" style="flex: 1; font-weight: 700; background: rgba(6, 182, 212, 0.2); color: #38bdf8; border-color: #06b6d4;">
           🌐 Cargar Plano Georreferenciado
         </button>
@@ -418,7 +420,7 @@
         </div>
 
         <!-- ================= PANEL 2: CALIBRACIÓN CON 3 PUNTOS ================= -->
-        <div id="panel-3point-mode" style="display: none; height: 100%; flex-direction: column; width: 100%;">
+        <div id="panel-3point-mode" style="display: none; min-height: 100%; flex: 1 0 auto; flex-direction: column; width: 100%;">
           <!-- PDF File Selector for 3-Point -->
           <div id="pdf-upload-placeholder" style="padding: 24px; text-align: center; margin: auto; max-width: 400px;">
             <div style="font-size: 48px; margin-bottom: 12px;">📐</div>
@@ -1377,7 +1379,7 @@
   <script src="js/kml-exporter.js?v=2.2.6"></script>
   <script src="js/kml-importer.js?v=2.2.6"></script>
   <script src="js/navigation-stakeout.js?v=2.2.6"></script>
-  <script src="js/map-engine.js?v=2.2.6"></script>
-  <script src="js/app.js?v=2.2.2"></script>
+  <script src="js/map-engine.js?v=2.2.9"></script>
+  <script src="js/app.js?v=2.2.9"></script>
 </body>
 </html>

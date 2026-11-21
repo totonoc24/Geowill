@@ -199,9 +199,14 @@ class MapEngine {
     // Add Scale bar
     L.control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(this.map);
 
-    // Track coordinates on map movement
-    this.map.on('mousemove touchmove', (e) => {
-      this._updateCoordinatesHUD(e.latlng);
+    // Track coordinates on map movement (desktop pointer & mobile pan)
+    this.map.on('mousemove', (e) => {
+      if (e.latlng) {
+        this._updateCoordinatesHUD(e.latlng);
+      }
+    });
+    this.map.on('move', () => {
+      this._updateCoordinatesHUD(this.map.getCenter());
     });
 
     return this.map;
@@ -277,9 +282,28 @@ class MapEngine {
   }
 
   _updateCoordinatesHUD(latlng) {
+    if (!latlng) return;
+    this.lastHudLatLng = latlng;
+
     const latElem = document.getElementById('hud-lat');
     const lngElem = document.getElementById('hud-lng');
-    if (latElem && lngElem && latlng) {
+    if (!latElem || !lngElem) return;
+
+    const crs = (window.app && window.app.currentHudCrs) ? window.app.currentHudCrs : 'wgs84';
+
+    if (crs === 'epsg3116' && window.georefEngine) {
+      const pt = window.georefEngine.wgs84ToEpsg3116(latlng.lat, latlng.lng);
+      latElem.textContent = `${pt.norte.toFixed(1)} m`;
+      lngElem.textContent = `${pt.este.toFixed(1)} m`;
+    } else if (crs === 'epsg9377' && window.georefEngine) {
+      const pt = window.georefEngine.wgs84ToEpsg9377(latlng.lat, latlng.lng);
+      latElem.textContent = `${pt.norte.toFixed(1)} m`;
+      lngElem.textContent = `${pt.este.toFixed(1)} m`;
+    } else if (crs === 'epsg32618' && window.georefEngine) {
+      const pt = window.georefEngine.wgs84ToEpsg32618(latlng.lat, latlng.lng);
+      latElem.textContent = `${pt.norte.toFixed(1)} m`;
+      lngElem.textContent = `${pt.este.toFixed(1)} m`;
+    } else {
       latElem.textContent = latlng.lat.toFixed(6);
       lngElem.textContent = latlng.lng.toFixed(6);
     }

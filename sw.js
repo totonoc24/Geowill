@@ -1,4 +1,4 @@
-const CACHE_NAME = 'geowill-v2.2.2';
+const CACHE_NAME = 'geowill-v2.2.9';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

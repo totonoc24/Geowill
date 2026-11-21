@@ -25,7 +25,7 @@ if not os.path.exists(JAVA_EXE):
     JAVA_EXE = 'java'
 
 APP_NAME = 'Geowill'
-OUTPUT_APK_NAME = 'Geowill_Android_v2.2.2.apk'
+OUTPUT_APK_NAME = 'Geowill_Android_v2.2.9.apk'
 
 def setup_directories():
     print('[1/6] Preparando estructura de directorios...')
@@ -52,8 +52,8 @@ def create_manifest_and_resources():
     manifest_content = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.geowill"
-    android:versionCode="18"
-    android:versionName="2.2.2">
+    android:versionCode="25"
+    android:versionName="2.2.9">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
 
@@ -631,7 +631,13 @@ public class MainActivity extends Activity {
         // Native bridge for WhatsApp / Bluetooth / System Sharing, Direct Camera & Background Tracking
         webView.addJavascriptInterface(new AndroidBridge(this), "AndroidNative");
 
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                isAppLoaded = true;
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
@@ -834,9 +840,84 @@ public class MainActivity extends Activity {
         }
     }
 
+    private Object mBackInvokedCallback = null;
+
+    private void registerPredictiveBackCallback() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            try {
+                if (mBackInvokedCallback != null) return;
+                Class<?> cbClass = Class.forName("android.window.OnBackInvokedCallback");
+                ClassLoader classLoader = cbClass.getClassLoader();
+                if (classLoader == null) classLoader = getClassLoader();
+                mBackInvokedCallback = java.lang.reflect.Proxy.newProxyInstance(
+                    classLoader,
+                    new Class<?>[]{cbClass},
+                    new java.lang.reflect.InvocationHandler() {
+                        @Override
+                        public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) throws Throwable {
+                            if (method == null) return null;
+                            String name = method.getName();
+                            if ("onBackInvoked".equals(name)) {
+                                triggerNativeBackPress();
+                                return null;
+                            }
+                            if ("hashCode".equals(name)) {
+                                return Integer.valueOf(System.identityHashCode(proxy));
+                            }
+                            if ("equals".equals(name)) {
+                                return Boolean.valueOf(proxy == (args != null && args.length > 0 ? args[0] : null));
+                            }
+                            if ("toString".equals(name)) {
+                                return "GeowillBackCallback@" + Integer.toHexString(System.identityHashCode(proxy));
+                            }
+                            return null;
+                        }
+                    }
+                );
+                java.lang.reflect.Method getDispatcher = Activity.class.getMethod("getOnBackInvokedDispatcher");
+                Object dispatcher = getDispatcher.invoke(this);
+                if (dispatcher != null) {
+                    Class<?> dispatcherInterface = Class.forName("android.window.OnBackInvokedDispatcher");
+                    java.lang.reflect.Method registerMethod = dispatcherInterface.getMethod("registerOnBackInvokedCallback", int.class, cbClass);
+                    registerMethod.setAccessible(true);
+                    // 0 = PRIORITY_DEFAULT (Permitido para aplicaciones en Android 13/14+)
+                    registerMethod.invoke(dispatcher, 0, mBackInvokedCallback);
+                    Log.d("Geowill", "OnBackInvokedCallback registrado con exito con PRIORITY_DEFAULT");
+                }
+            } catch (Throwable t) {
+                Log.w("Geowill", "Predictive back registration ignored: " + t.getMessage());
+            }
+        }
+    }
+
+    private void unregisterPredictiveBackCallback() {
+        if (Build.VERSION.SDK_INT >= 33 && mBackInvokedCallback != null) {
+            try {
+                Class<?> cbClass = Class.forName("android.window.OnBackInvokedCallback");
+                Class<?> dispatcherInterface = Class.forName("android.window.OnBackInvokedDispatcher");
+                java.lang.reflect.Method getDispatcher = Activity.class.getMethod("getOnBackInvokedDispatcher");
+                Object dispatcher = getDispatcher.invoke(this);
+                if (dispatcher != null) {
+                    java.lang.reflect.Method unregisterMethod = dispatcherInterface.getMethod("unregisterOnBackInvokedCallback", cbClass);
+                    unregisterMethod.setAccessible(true);
+                    unregisterMethod.invoke(dispatcher, mBackInvokedCallback);
+                    Log.d("Geowill", "OnBackInvokedCallback desregistrado");
+                }
+            } catch (Throwable ignored) {}
+            mBackInvokedCallback = null;
+        }
+    }
+
+    @Override
+    public void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        registerPredictiveBackCallback();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        registerPredictiveBackCallback();
         if (webView != null) {
             webView.post(new Runnable() {
                 @Override
@@ -849,6 +930,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        unregisterPredictiveBackCallback();
         if (instance == this) {
             instance = null;
         }
@@ -1160,7 +1242,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private long lastNativeBackTime = 0;
+    private long lastNativeBackTriggerTime = 0;
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
@@ -1188,16 +1270,30 @@ public class MainActivity extends Activity {
 
     private void triggerNativeBackPress() {
         long now = System.currentTimeMillis();
-        if (now - lastNativeBackTime < 300) {
+        if (now - lastNativeBackTriggerTime < 450) {
             return;
         }
-        lastNativeBackTime = now;
+        lastNativeBackTriggerTime = now;
 
         if (webView != null) {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    webView.evaluateJavascript("if (typeof window.handleAndroidBackPressed === 'function') { window.handleAndroidBackPressed(); } else if (window.app && typeof window.app.handleBackNavigation === 'function') { window.app.handleBackNavigation(); }", null);
+                    webView.evaluateJavascript(
+                        "(function() { " +
+                        "  try { " +
+                        "    if (window.app && typeof window.app.onBackPressed === 'function') { " +
+                        "      return window.app.onBackPressed(); " +
+                        "    } else if (typeof window.handleAndroidBackPressed === 'function') { " +
+                        "      return window.handleAndroidBackPressed(); " +
+                        "    } " +
+                        "  } catch(e) { " +
+                        "    console.error('Error invoking onBackPressed:', e); " +
+                        "  } " +
+                        "  return false; " +
+                        "})();",
+                        null
+                    );
                 }
             });
         }
@@ -1421,8 +1517,13 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void showToast(String message) {
-            Toast.makeText(mContext, message, Toast.LENGTH_SHORT).show();
+        public void showToast(final String message) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Toast.makeText(mContext, message, Toast.LENGTH_SHORT).show();
+                }
+            });
         }
 
         @JavascriptInterface
@@ -1430,7 +1531,11 @@ public class MainActivity extends Activity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    finish();
+                    try {
+                        finishAffinity();
+                    } catch (Throwable t) {
+                        finish();
+                    }
                 }
             });
         }

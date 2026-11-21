@@ -6,7 +6,9 @@
 // Global early hook for Android Native Bridge
 if (!window.handleAndroidBackPressed) {
   window.handleAndroidBackPressed = function() {
-    if (window.app && typeof window.app.handleBackNavigation === 'function') {
+    if (window.app && typeof window.app.onBackPressed === 'function') {
+      return window.app.onBackPressed();
+    } else if (window.app && typeof window.app.handleBackNavigation === 'function') {
       return window.app.handleBackNavigation();
     }
     return false;
@@ -23,9 +25,9 @@ class GeoPlanApp {
     this.calibrationState = {
       activeGcpIndex: 0, // 0, 1, 2
       gcps: [
-        { pdfX: null, pdfY: null, lat: null, lng: null },
-        { pdfX: null, pdfY: null, lat: null, lng: null },
-        { pdfX: null, pdfY: null, lat: null, lng: null }
+        { pdfX: null, pdfY: null, lat: null, lng: null, rawC1: '', rawC2: '' },
+        { pdfX: null, pdfY: null, lat: null, lng: null, rawC1: '', rawC2: '' },
+        { pdfX: null, pdfY: null, lat: null, lng: null, rawC1: '', rawC2: '' }
       ],
       pdfDimensions: { width: 0, height: 0, scale: 2.0 },
       isSelectingOnMap: false
@@ -222,7 +224,11 @@ class GeoPlanApp {
       } else {
         this.currentHudCrs = 'wgs84';
       }
-      this._updateGpsHudUI(window.gpsTracker.currentPosition || { lat: 4.6097, lng: -74.0817, altitude: 0, accuracy: 0 });
+      const refPos = window.gpsTracker?.currentPosition
+        || (window.mapEngine?.lastHudLatLng ? { lat: window.mapEngine.lastHudLatLng.lat, lng: window.mapEngine.lastHudLatLng.lng, altitude: 0, accuracy: 0 } : null)
+        || (window.mapEngine?.map ? { lat: window.mapEngine.map.getCenter().lat, lng: window.mapEngine.map.getCenter().lng, altitude: 0, accuracy: 0 } : null)
+        || { lat: 4.6097, lng: -74.0817, altitude: 0, accuracy: 0 };
+      this._updateGpsHudUI(refPos);
       const crsName = this.currentHudCrs === 'wgs84' ? 'WGS84 (Lat/Lon)' 
         : this.currentHudCrs === 'epsg3116' ? 'EPSG:3116 (Magna Bogotá)' 
         : this.currentHudCrs === 'epsg9377' ? 'EPSG:9377 (Origen Nacional)' 
@@ -486,11 +492,20 @@ class GeoPlanApp {
       this.showToast('Seleccione un proyecto primero', 'warning');
       return;
     }
-    document.getElementById('modal-export-kml')?.classList.add('active');
+    const modal = document.getElementById('modal-export-kml');
+    if (modal) {
+      modal.style.display = '';
+      modal.classList.add('active');
+      try { window.history.pushState({ geowillModal: 'export-kml' }, ''); } catch (e) {}
+    }
   }
 
   closeExportKmlModal() {
-    document.getElementById('modal-export-kml')?.classList.remove('active');
+    const modal = document.getElementById('modal-export-kml');
+    if (modal) {
+      modal.classList.remove('active');
+      modal.style.display = '';
+    }
   }
 
   async shareKmlWhatsApp() {
@@ -1821,7 +1836,11 @@ class GeoPlanApp {
      3-Point Georeferencing Wizard Implementation
      ========================================================================== */
   openPdfWizard() {
-    document.getElementById('modal-georef-wizard').classList.add('active');
+    const modal = document.getElementById('modal-georef-wizard');
+    if (modal) {
+      modal.classList.add('active');
+      try { window.history.pushState({ geowillModal: 'georef-wizard' }, ''); } catch (e) {}
+    }
     this._resetCalibrationState();
   }
 
@@ -1833,9 +1852,9 @@ class GeoPlanApp {
     this.calibrationState = {
       activeGcpIndex: 0,
       gcps: [
-        { pdfX: null, pdfY: null, lat: null, lng: null },
-        { pdfX: null, pdfY: null, lat: null, lng: null },
-        { pdfX: null, pdfY: null, lat: null, lng: null }
+        { pdfX: null, pdfY: null, lat: null, lng: null, rawC1: '', rawC2: '' },
+        { pdfX: null, pdfY: null, lat: null, lng: null, rawC1: '', rawC2: '' },
+        { pdfX: null, pdfY: null, lat: null, lng: null, rawC1: '', rawC2: '' }
       ],
       pdfDimensions: { width: 0, height: 0, scale: 2.0 },
       isSelectingOnMap: false
@@ -2243,28 +2262,41 @@ class GeoPlanApp {
     // Real-time Coordinate Input Listener (input, change, blur)
     const updateGcpFromInputs = () => {
       const idx = this.calibrationState.activeGcpIndex;
-      const val1 = document.getElementById('gcp-lat-input')?.value.trim();
-      const val2 = document.getElementById('gcp-lng-input')?.value.trim();
+      const gcp = this.calibrationState.gcps[idx];
+      const val1 = document.getElementById('gcp-lat-input')?.value.trim() || '';
+      const val2 = document.getElementById('gcp-lng-input')?.value.trim() || '';
+
+      gcp.rawC1 = val1;
+      gcp.rawC2 = val2;
 
       if (val1 && val2) {
         const converted = window.georefEngine.parseCoordinateInput(val1, val2, this.selectedWizardCrs);
         if (converted) {
-          this.calibrationState.gcps[idx].lat = converted.lat;
-          this.calibrationState.gcps[idx].lng = converted.lng;
+          gcp.lat = converted.lat;
+          gcp.lng = converted.lng;
         } else {
-          this.calibrationState.gcps[idx].lat = null;
-          this.calibrationState.gcps[idx].lng = null;
+          gcp.lat = null;
+          gcp.lng = null;
         }
       } else {
-        this.calibrationState.gcps[idx].lat = null;
-        this.calibrationState.gcps[idx].lng = null;
+        gcp.lat = null;
+        gcp.lng = null;
       }
-      this._updateGcpTabsUI();
+      this._updateGcpTabsUI(true);
     };
 
     ['input', 'change', 'blur'].forEach(evt => {
       document.getElementById('gcp-lat-input')?.addEventListener(evt, updateGcpFromInputs);
       document.getElementById('gcp-lng-input')?.addEventListener(evt, updateGcpFromInputs);
+    });
+
+    // Asegurar que al enfocar los campos de coordenadas en móvil se desplacen a la vista (sobre el teclado)
+    ['gcp-lat-input', 'gcp-lng-input', 'wizard-crs-select'].forEach(id => {
+      document.getElementById(id)?.addEventListener('focus', (e) => {
+        setTimeout(() => {
+          e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 250);
+      });
     });
 
     // "Usar mi ubicación GPS actual para este punto"
@@ -2409,8 +2441,10 @@ class GeoPlanApp {
 
     [0, 1, 2].forEach(i => {
       const pNum = i + 1;
-      const val1 = document.getElementById(`table-p${pNum}-c1`)?.value.trim();
-      const val2 = document.getElementById(`table-p${pNum}-c2`)?.value.trim();
+      const val1 = document.getElementById(`table-p${pNum}-c1`)?.value.trim() || '';
+      const val2 = document.getElementById(`table-p${pNum}-c2`)?.value.trim() || '';
+      this.calibrationState.gcps[i].rawC1 = val1;
+      this.calibrationState.gcps[i].rawC2 = val2;
 
       if (val1 && val2) {
         const converted = window.georefEngine.parseCoordinateInput(val1, val2, crs);
@@ -2711,7 +2745,7 @@ class GeoPlanApp {
     }
   }
 
-  _updateGcpTabsUI() {
+  _updateGcpTabsUI(skipInputOverwrite = false) {
     const idx = this.calibrationState.activeGcpIndex;
     
     // Update pills and badges
@@ -2755,10 +2789,10 @@ class GeoPlanApp {
       }
     }
 
-    this._updateGcpInputsFromState();
+    this._updateGcpInputsFromState(skipInputOverwrite);
   }
 
-  _updateGcpInputsFromState() {
+  _updateGcpInputsFromState(skipInputOverwrite = false) {
     const idx = this.calibrationState.activeGcpIndex;
     const gcp = this.calibrationState.gcps[idx];
 
@@ -2770,35 +2804,45 @@ class GeoPlanApp {
     if (gcp.lat !== null && gcp.lng !== null) {
       if (this.selectedWizardCrs === 'epsg3116') {
         const pt = window.georefEngine.wgs84ToEpsg3116(gcp.lat, gcp.lng);
-        if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
-        if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
+        if (!skipInputOverwrite) {
+          if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
+          if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
+        }
         if (statusBox) {
           statusBox.innerHTML = `<span style="color: #10b981; font-weight: 700;">✓ N: ${pt.norte.toFixed(2)}m, E: ${pt.este.toFixed(2)}m</span>`;
         }
       } else if (this.selectedWizardCrs === 'epsg9377') {
         const pt = window.georefEngine.wgs84ToEpsg9377(gcp.lat, gcp.lng);
-        if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
-        if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
+        if (!skipInputOverwrite) {
+          if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
+          if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
+        }
         if (statusBox) {
           statusBox.innerHTML = `<span style="color: #10b981; font-weight: 700;">✓ N: ${pt.norte.toFixed(2)}m, E: ${pt.este.toFixed(2)}m</span>`;
         }
       } else if (this.selectedWizardCrs === 'epsg32618') {
         const pt = window.georefEngine.wgs84ToEpsg32618(gcp.lat, gcp.lng);
-        if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
-        if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
+        if (!skipInputOverwrite) {
+          if (latInput && document.activeElement !== latInput) latInput.value = pt.norte.toFixed(2);
+          if (lngInput && document.activeElement !== lngInput) lngInput.value = pt.este.toFixed(2);
+        }
         if (statusBox) {
           statusBox.innerHTML = `<span style="color: #10b981; font-weight: 700;">✓ N: ${pt.norte.toFixed(2)}m, E: ${pt.este.toFixed(2)}m</span>`;
         }
       } else {
-        if (latInput && document.activeElement !== latInput) latInput.value = gcp.lat.toFixed(6);
-        if (lngInput && document.activeElement !== lngInput) lngInput.value = gcp.lng.toFixed(6);
+        if (!skipInputOverwrite) {
+          if (latInput && document.activeElement !== latInput) latInput.value = gcp.lat.toFixed(6);
+          if (lngInput && document.activeElement !== lngInput) lngInput.value = gcp.lng.toFixed(6);
+        }
         if (statusBox) {
           statusBox.innerHTML = `<span style="color: #10b981; font-weight: 700;">✓ Lat ${gcp.lat.toFixed(6)}°, Lon ${gcp.lng.toFixed(6)}°</span>`;
         }
       }
     } else {
-      if (latInput && document.activeElement !== latInput) latInput.value = '';
-      if (lngInput && document.activeElement !== lngInput) lngInput.value = '';
+      if (!skipInputOverwrite) {
+        if (latInput && document.activeElement !== latInput) latInput.value = gcp.rawC1 || '';
+        if (lngInput && document.activeElement !== lngInput) lngInput.value = gcp.rawC2 || '';
+      }
       if (statusBox) {
         statusBox.innerHTML = `<span style="color: #f59e0b;">⚠️ Ingrese las coordenadas reales de P${idx + 1}</span>`;
       }
@@ -3336,6 +3380,7 @@ class GeoPlanApp {
     if (!modal) return;
     modal.style.display = 'flex';
     modal.classList.add('active');
+    try { window.history.pushState({ geowillModal: 'point-search' }, ''); } catch (e) {}
     this.currentSearchFilter = 'all';
     const input = document.getElementById('point-search-input');
     if (input) input.value = '';
@@ -3829,7 +3874,12 @@ class GeoPlanApp {
       listElem.appendChild(card);
     }
 
-    document.getElementById('modal-projects-backdrop')?.classList.add('active');
+    const modal = document.getElementById('modal-projects-backdrop');
+    if (modal) {
+      modal.style.display = '';
+      modal.classList.add('active');
+      try { window.history.pushState({ geowillModal: 'projects' }, ''); } catch (e) {}
+    }
   }
 
   async switchProject(projectId) {
@@ -3928,13 +3978,19 @@ class GeoPlanApp {
   openLayersModal() {
     const modal = document.getElementById('modal-layers-backdrop');
     if (!modal) return;
+    modal.style.display = '';
     modal.classList.add('active');
+    try { window.history.pushState({ geowillModal: 'layers' }, ''); } catch (e) {}
     this.switchLayersTab('visibility');
     this.refreshLayersModalUI();
   }
 
   closeLayersModal() {
-    document.getElementById('modal-layers-backdrop')?.classList.remove('active');
+    const modal = document.getElementById('modal-layers-backdrop');
+    if (modal) {
+      modal.classList.remove('active');
+      modal.style.display = '';
+    }
   }
 
   switchLayersTab(tabName) {
@@ -4178,12 +4234,68 @@ class GeoPlanApp {
     }, 3200);
   }
 
+  closeProjectsModal() {
+    const modal = document.getElementById('modal-projects-backdrop');
+    if (modal) {
+      modal.classList.remove('active');
+      modal.style.display = '';
+    }
+  }
+
+  closeLiveCameraModal() {
+    this.closeLiveCamera();
+  }
+
   /* ==========================================================================
      Hardware & System Back Button Navigation Manager (Paso Atrás & Doble Toque Salir)
      ========================================================================== */
+  onBackPressed() {
+    const now = Date.now();
+    // Filtro estricto anti-rebote: descartar cualquier evento que llegue en menos de 500ms
+    if (this._lastBackActionTime && (now - this._lastBackActionTime < 500)) {
+      return true;
+    }
+    this._lastBackActionTime = now;
+
+    console.log('[Geowill Back] Evaluando retroceso...');
+    const handled = this.handleBackNavigation();
+    if (handled) {
+      console.log('[Geowill Back] Elemento cerrado con éxito. Reset de salida.');
+      this._rootBackPressTime = 0;
+      return true;
+    }
+
+    // Si no había ventanas ni herramientas activas, estamos en el mapa principal
+    // Para salir, el usuario DEBE presionar por SEGUNDA vez de forma deliberada:
+    // La 2ª pulsación debe ocurrir al menos 600ms después del 1er toque y antes de 3000ms
+    if (this._rootBackPressTime && (now - this._rootBackPressTime >= 600) && (now - this._rootBackPressTime < 3000)) {
+      console.log('[Geowill Back] Segunda pulsación deliberada en mapa principal. Saliendo de Geowill...');
+      this._rootBackPressTime = 0;
+      if (window.AndroidNative && typeof window.AndroidNative.exitApp === 'function') {
+        window.AndroidNative.exitApp();
+      }
+      return false;
+    } else {
+      this._rootBackPressTime = now;
+      console.log('[Geowill Back] Primera pulsación en el mapa principal. Solicitando confirmación.');
+      if (window.AndroidNative && typeof window.AndroidNative.showToast === 'function') {
+        try { window.AndroidNative.showToast('Presione atrás nuevamente para salir'); } catch (e) {}
+      }
+      this.showToast('Presione atrás nuevamente para salir', 'info');
+      return false;
+    }
+  }
+
   handleBackNavigation() {
     try {
-      // 1. Fullscreen Photo Lightbox Viewer (Highest priority: closes photo, returns to previous window)
+      // 0. Si hay un campo de texto enfocado (teclado virtual en pantalla abierto), desenfocarlo para cerrarlo
+      if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        console.log('[Geowill Back] Desenfocando campo de entrada activo');
+        document.activeElement.blur();
+        return true;
+      }
+
+      // 1. Visor de fotos Lightbox Fullscreen (Máxima prioridad)
       const photoModal = document.getElementById('modal-photo-lightbox');
       if (photoModal && (photoModal.classList.contains('active') || photoModal.style.display === 'flex' || photoModal.style.display === 'block')) {
         console.log('[Geowill Back] Cerrando visor de fotos Lightbox');
@@ -4191,7 +4303,7 @@ class GeoPlanApp {
         return true;
       }
 
-      // 2. Fullscreen Tutorial Viewer
+      // 2. Visor interactivo del tutorial Fullscreen
       const tutModal = document.getElementById('modal-tutorial');
       if (tutModal && (tutModal.classList.contains('active') || tutModal.style.display === 'flex' || tutModal.style.display === 'block')) {
         console.log('[Geowill Back] Cerrando visor de tutorial');
@@ -4199,42 +4311,50 @@ class GeoPlanApp {
         return true;
       }
 
-      // 3. GCP 3-Point Calibration Table Modal (Child of PDF Georef Wizard)
+      // 3. Tabla de calibración GCP de 3 puntos (Hijo del asistente PDF)
       const gcpTable = document.getElementById('modal-gcp-table-backdrop');
-      if (gcpTable && gcpTable.classList.contains('active')) {
+      if (gcpTable && (gcpTable.classList.contains('active') || gcpTable.style.display === 'flex' || gcpTable.style.display === 'block')) {
         console.log('[Geowill Back] Cerrando tabla GCP');
         this.closeGcpTableModal();
         return true;
       }
 
-      // 4. Map Coordinate Picker Mode during PDF calibration
+      // 4. Selector de coordenadas en el mapa durante calibración PDF
       const mapPicker = document.getElementById('banner-gcp-map-picker');
       if (mapPicker && (mapPicker.classList.contains('active') || mapPicker.style.display === 'flex' || mapPicker.style.display === 'block')) {
-        console.log('[Geowill Back] Cancelando seleccion en mapa');
+        console.log('[Geowill Back] Cancelando selección en mapa');
         this.cancelMapPick();
         return true;
       }
 
-      // 5. Live In-App Camera Viewfinder
-      const camModal = document.getElementById('modal-live-camera');
-      if (camModal && (camModal.classList.contains('active') || camModal.style.display === 'flex' || camModal.style.display === 'block')) {
-        console.log('[Geowill Back] Cerrando camara en vivo');
-        this.closeLiveCameraModal();
+      // 5. Asistente de Georreferenciación PDF
+      const geoModal = document.getElementById('modal-georef-wizard');
+      if (geoModal && (geoModal.classList.contains('active') || geoModal.style.display === 'flex' || geoModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando asistente de georreferenciación');
+        this.closePdfWizard();
         return true;
       }
 
-      // 6. Point Search & Stakeout List Modal
+      // 6. Cámara de fotos en vivo
+      const camModal = document.getElementById('modal-live-camera');
+      if (camModal && (camModal.classList.contains('active') || camModal.style.display === 'flex' || camModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando cámara en vivo');
+        this.closeLiveCamera();
+        return true;
+      }
+
+      // 7. Modal de Búsqueda y Replanteo de Puntos
       const searchModal = document.getElementById('modal-point-search');
-      if (searchModal && searchModal.classList.contains('active')) {
-        console.log('[Geowill Back] Cerrando busqueda de puntos');
+      if (searchModal && (searchModal.classList.contains('active') || searchModal.style.display === 'flex' || searchModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando búsqueda de puntos');
         this.closePointSearchModal();
         return true;
       }
 
-      // 7. Feature Attributes & Photo Form Modal (Ficha Técnica / Edición)
+      // 8. Ficha Técnica / Edición de atributos de entidad
       const featModal = document.getElementById('modal-feature-backdrop');
-      if (featModal && featModal.classList.contains('active')) {
-        console.log('[Geowill Back] Cerrando ficha tecnica de punto');
+      if (featModal && (featModal.classList.contains('active') || featModal.style.display === 'flex' || featModal.style.display === 'block')) {
+        console.log('[Geowill Back] Cerrando ficha técnica de punto');
         const returnId = this._returnToInfoFeatureId;
         this.closeFeatureModal();
         if (returnId) {
@@ -4243,33 +4363,31 @@ class GeoPlanApp {
         return true;
       }
 
-      // 8. Feature Info Panel (Cualidades del Punto)
+      // 9. Panel de Información de la Entidad (Cualidades del Punto)
       const infoModal = document.getElementById('modal-info-backdrop');
-      if (infoModal && infoModal.classList.contains('active')) {
+      if (infoModal && (infoModal.classList.contains('active') || infoModal.style.display === 'flex' || infoModal.style.display === 'block')) {
         console.log('[Geowill Back] Cerrando panel de info de punto');
         this.closeInfoModal();
         return true;
       }
 
-      // 9. Unified KML Hub Modal
+      // 10. Gestor KML (Importar / Exportar)
       const kmlModal = document.getElementById('modal-export-kml');
       if (kmlModal && (kmlModal.classList.contains('active') || kmlModal.style.display === 'flex' || kmlModal.style.display === 'block')) {
         console.log('[Geowill Back] Cerrando modal KML');
-        kmlModal.classList.remove('active');
-        kmlModal.style.display = 'none';
+        this.closeExportKmlModal();
         return true;
       }
 
-      // 10. Project Manager Modal
+      // 11. Gestor de Proyectos
       const projModal = document.getElementById('modal-projects-backdrop');
       if (projModal && (projModal.classList.contains('active') || projModal.style.display === 'flex' || projModal.style.display === 'block')) {
         console.log('[Geowill Back] Cerrando gestor de proyectos');
-        projModal.classList.remove('active');
-        projModal.style.display = 'none';
+        this.closeProjectsModal();
         return true;
       }
 
-      // 11. Base Maps & Layers Modal
+      // 12. Menú de Capas y Mapas Base
       const layersModal = document.getElementById('modal-layers-backdrop');
       if (layersModal && (layersModal.classList.contains('active') || layersModal.style.display === 'flex' || layersModal.style.display === 'block')) {
         console.log('[Geowill Back] Cerrando modal de capas');
@@ -4277,15 +4395,20 @@ class GeoPlanApp {
         return true;
       }
 
-      // 12. PDF Georeferencing Wizard Modal
-      const geoModal = document.getElementById('modal-georef-wizard');
-      if (geoModal && (geoModal.classList.contains('active') || geoModal.style.display === 'flex' || geoModal.style.display === 'block')) {
-        console.log('[Geowill Back] Cerrando asistente de georreferenciacion');
-        this.closePdfWizard();
+      // 13. Respaldo genérico para cualquier otro backdrop o modal activo
+      const activeBackdrops = document.querySelectorAll('.modal-backdrop.active, .fullscreen-modal.active');
+      if (activeBackdrops && activeBackdrops.length > 0) {
+        console.log('[Geowill Back] Cerrando modal genérico activo');
+        for (const el of activeBackdrops) {
+          el.classList.remove('active');
+          if (el.style.display && el.style.display !== 'none') {
+            el.style.display = 'none';
+          }
+        }
         return true;
       }
 
-      // 13. Active Map Popup (Leaflet)
+      // 14. Popup abierto en Leaflet
       if (document.querySelector('.leaflet-popup')) {
         console.log('[Geowill Back] Cerrando popup del mapa Leaflet');
         if (window.mapEngine && window.mapEngine.map) {
@@ -4294,26 +4417,30 @@ class GeoPlanApp {
         return true;
       }
 
-      // 14. Active Vector Drawing Mode (Drawing Points, Lines, Polygons)
-      if (window.vectorEditor && window.vectorEditor.currentMode && window.vectorEditor.currentMode !== 'none') {
-        console.log('[Geowill Back] Cancelando modo dibujo');
-        window.vectorEditor.cancelDrawing();
+      // 15. Modo de dibujo vectorial activo (Puntos, Líneas, Polígonos)
+      const drawBanner = document.getElementById('drawing-banner');
+      if ((drawBanner && drawBanner.style.display !== 'none') || (window.vectorEditor && window.vectorEditor.currentMode && window.vectorEditor.currentMode !== 'none')) {
+        console.log('[Geowill Back] Cancelando modo dibujo activo');
+        if (window.vectorEditor) window.vectorEditor.cancelDrawing();
+        if (drawBanner) drawBanner.style.display = 'none';
         this.showToast('Modo dibujo cancelado', 'info');
         return true;
       }
 
-      // 15. Active Stakeout Guidance / Navigation
-      if (window.navStakeout && window.navStakeout.isActive) {
-        console.log('[Geowill Back] Deteniendo navegacion');
-        window.navStakeout.stop();
+      // 16. Guía de replanteo / Navegación en tiempo real activa
+      const navHud = document.getElementById('nav-guidance-hud');
+      if ((navHud && navHud.style.display !== 'none') || (window.navStakeout && window.navStakeout.isActive)) {
+        console.log('[Geowill Back] Deteniendo navegación activa');
+        if (window.navStakeout) window.navStakeout.stop();
+        if (navHud) navHud.style.display = 'none';
         this.showToast('Navegación / replanteo finalizado', 'info');
         return true;
       }
     } catch (err) {
-      console.error('[Geowill] Error in handleBackNavigation:', err);
+      console.error('[Geowill] Error en handleBackNavigation:', err);
     }
 
-    // Root view reached: nothing is active
+    // Pantalla raíz alcanzada: no hay ningún elemento secundario abierto
     console.log('[Geowill Back] Pantalla principal (mapa). Ninguna ventana activa.');
     return false;
   }
@@ -4322,50 +4449,21 @@ class GeoPlanApp {
     if (this._backNavInitialized) return;
     this._backNavInitialized = true;
 
-    let lastActionTime = 0;
-    let rootBackPressTime = 0;
-
     // 1. Android Native Bridge callback & Global hooks
-    window.handleAndroidBackPressed = () => {
-      const now = Date.now();
-      // Debounce de 300ms para evitar doble disparo
-      if (now - lastActionTime < 300) {
-        return true;
-      }
-      lastActionTime = now;
+    window.handleAndroidBackPressed = () => this.onBackPressed();
+    window.handleBackNavigation = () => this.onBackPressed();
 
-      console.log('[Geowill] handleAndroidBackPressed invocado a las', now);
-      const handled = this.handleBackNavigation();
-      if (handled) {
-        console.log('[Geowill] Modal/ventana cerrada con éxito. Reset de salida.');
-        rootBackPressTime = 0; // RESET TOTAL
-        return true;
+    // 2. Setup browser history trap for PWA and Mobile Chrome
+    try {
+      if (!window.history.state || !window.history.state.geowillApp) {
+        window.history.replaceState({ geowillApp: 'root' }, '');
+        window.history.pushState({ geowillApp: 'active' }, '');
       }
+    } catch (e) {}
 
-      // 2. Si no se cerró nada, estamos en el mapa principal
-      if (rootBackPressTime > 0 && (now - rootBackPressTime < 2500)) {
-        console.log('[Geowill] Doble pulsación confirmada en el mapa. Saliendo de la app...');
-        rootBackPressTime = 0;
-        if (window.AndroidNative && typeof window.AndroidNative.exitApp === 'function') {
-          window.AndroidNative.exitApp();
-        }
-        return false;
-      } else {
-        rootBackPressTime = now;
-        console.log('[Geowill] Primera pulsación en el mapa. Mostrando aviso.');
-        if (window.AndroidNative && typeof window.AndroidNative.showToast === 'function') {
-          window.AndroidNative.showToast('Presione atrás nuevamente para salir');
-        } else {
-          this.showToast('Presione atrás nuevamente para salir', 'info');
-        }
-        return false;
-      }
-    };
-    window.handleBackNavigation = window.handleAndroidBackPressed;
-
-    // 2. Keyboard Escape key (desktop testing or tablet keyboard)
+    // 3. Tecla Escape (Testing en PC o teclados físicos)
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' || e.keyCode === 27) {
         const handled = this.handleBackNavigation();
         if (handled) {
           e.preventDefault();
@@ -4374,10 +4472,31 @@ class GeoPlanApp {
       }
     });
 
-    // 3. Web browser / WebView history back navigation support
+    // 4. Soporte para botón atrás del navegador web y PWA (popstate)
     window.addEventListener('popstate', (e) => {
-      console.log('[Geowill] popstate event triggered:', e.state);
-      this.handleBackNavigation();
+      console.log('[Geowill] Evento popstate detectado');
+      const handled = this.handleBackNavigation();
+      if (handled) {
+        // Modal cerrado: restaurar el estado activo en el historial para futuros retrocesos
+        try { window.history.pushState({ geowillApp: 'active' }, ''); } catch (err) {}
+      } else {
+        // Pantalla raíz (mapa): evaluar confirmación de salida
+        const now = Date.now();
+        if (this._rootBackPressTime && (now - this._rootBackPressTime >= 600) && (now - this._rootBackPressTime < 3000)) {
+          console.log('[Geowill] Segunda pulsación en mapa web. Saliendo...');
+          this._rootBackPressTime = 0;
+          if (window.AndroidNative && typeof window.AndroidNative.exitApp === 'function') {
+            window.AndroidNative.exitApp();
+          } else {
+            window.history.back();
+          }
+        } else {
+          this._rootBackPressTime = now;
+          this.showToast('Presione atrás nuevamente para salir', 'info');
+          // Mantener la app abierta reponiendo el estado
+          try { window.history.pushState({ geowillApp: 'active' }, ''); } catch (err) {}
+        }
+      }
     });
   }
 
@@ -4385,6 +4504,19 @@ class GeoPlanApp {
      Service Worker Registration for PWA
      ========================================================================== */
   _registerServiceWorker() {
+    // Si estamos en APK nativo o file://, desregistrar ServiceWorker para evitar que retenga archivos obsoletos en caché
+    if (window.AndroidNative || window.location.protocol === 'file:') {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          for (const reg of regs) {
+            reg.unregister();
+            console.log('[Geowill] ServiceWorker desregistrado en entorno nativo APK');
+          }
+        }).catch(() => {});
+      }
+      return;
+    }
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').then((reg) => {
         console.log('GeoPlan Service Worker registered:', reg.scope);

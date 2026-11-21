@@ -876,6 +876,9 @@ body.nav-guidance-active .leaflet-control-zoom {
 .fullscreen-modal {
   position: fixed;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
   z-index: 2100;
   background: var(--bg-primary);
   display: flex;
@@ -891,6 +894,7 @@ body.nav-guidance-active .leaflet-control-zoom {
 }
 
 .fullscreen-header {
+  flex-shrink: 0;
   padding: calc(var(--safe-top) + 10px) 16px 12px 16px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
@@ -901,8 +905,12 @@ body.nav-guidance-active .leaflet-control-zoom {
 
 .fullscreen-body {
   flex: 1;
+  min-height: 0;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
 }
@@ -913,20 +921,26 @@ body.nav-guidance-active .leaflet-control-zoom {
 .georef-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1 0 auto;
+  min-height: 100%;
+  width: 100%;
 }
 
 .georef-step-indicator {
+  flex-shrink: 0;
   padding: 10px 16px;
   background: var(--bg-secondary);
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   border-bottom: 1px solid var(--border-color);
 }
 
 .gcp-pill-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -957,14 +971,21 @@ body.nav-guidance-active .leaflet-control-zoom {
 }
 
 .pdf-canvas-viewport {
-  flex: 1;
+  flex: 1 0 210px;
   position: relative;
   background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
   overflow: hidden;
   touch-action: none;
   user-select: none;
   cursor: crosshair;
-  min-height: 220px;
+  min-height: 210px;
+  max-height: 50dvh;
+}
+
+@media (min-height: 820px) {
+  .pdf-canvas-viewport {
+    max-height: none;
+  }
 }
 
 #pdf-canvas-wrapper {
@@ -1110,12 +1131,14 @@ body.nav-guidance-active .leaflet-control-zoom {
 }
 
 .georef-bottom-panel {
+  flex-shrink: 0;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
-  padding: 12px 16px;
+  padding: 12px 16px calc(24px + var(--safe-bottom)) 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  touch-action: pan-y;
 }
 
 .gcp-inputs-grid {
